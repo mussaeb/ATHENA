@@ -30,7 +30,13 @@ Personal documents in `rag/sources/` are ignored by Git by default.
 
 You do not have to copy everything into `rag/sources/`.
 
-Create this file:
+From ATHENA chat, run:
+
+```text
+/initdocs
+```
+
+This creates:
 
 ```text
 config/document_sources.json
@@ -56,6 +62,14 @@ Then run:
 
 The config file is ignored by Git so your personal folder list is not pushed to GitHub.
 
+To check what ATHENA can currently see:
+
+```text
+/sources
+```
+
+If `/sources` only shows `rag/sources`, ATHENA cannot search your Desktop or Documents yet.
+
 ## Why Not Index The Whole Computer?
 
 Indexing the whole computer is risky and noisy.
@@ -73,6 +87,21 @@ It can accidentally read:
 ATHENA is safer when it uses an allowlist of folders you choose.
 
 The indexer skips common noisy folders such as `.git`, `.ssh`, `Library`, `.cache`, `node_modules`, and virtual environments.
+
+For broad folders like `~/Documents` or `~/Downloads`, ATHENA also uses safety limits:
+
+```text
+ATHENA_DOCS_MAX_FILES=250
+ATHENA_DOCS_MAX_DEPTH=5
+```
+
+You can raise them when needed:
+
+```bash
+ATHENA_DOCS_MAX_FILES=500 ATHENA_DOCS_MAX_DEPTH=7 python3 scripts/athena_chat.py
+```
+
+For best results, point ATHENA at focused folders such as `~/Documents/Resumes` or `~/Downloads/ATHENA`, not your entire home directory.
 
 ## Index Documents
 
@@ -94,6 +123,12 @@ From ATHENA chat:
 
 ```text
 /search ATHENA memory
+```
+
+Use your real topic in place of `ATHENA memory`. For example:
+
+```text
+/search resume python
 ```
 
 From the terminal:

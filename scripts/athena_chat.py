@@ -15,6 +15,7 @@ import urllib.request
 MODEL = os.environ.get("ATHENA_MODEL", "qwen2.5:1.5b")
 OLLAMA_URL = os.environ.get("ATHENA_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 NUM_CTX = int(os.environ.get("ATHENA_NUM_CTX", "1536"))
+DOCS_TIMEOUT = int(os.environ.get("ATHENA_DOCS_TIMEOUT", "300"))
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CHAT_LOG_DIR = PROJECT_ROOT / "logs" / "chats"
 MEMORY_FILE = PROJECT_ROOT / "memory" / "profile.md"
@@ -74,14 +75,25 @@ def show_memory() -> None:
 
 
 def run_docs_command(args: list[str]) -> tuple[int, str]:
-    result = subprocess.run(
-        ["python3", str(DOCS_SCRIPT), *args],
-        check=False,
-        capture_output=True,
-        text=True,
-        cwd=PROJECT_ROOT,
-        timeout=90,
-    )
+    try:
+        result = subprocess.run(
+            ["python3", str(DOCS_SCRIPT), *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+            timeout=DOCS_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return (
+            124,
+            (
+                f"Document command timed out after {DOCS_TIMEOUT} seconds. "
+                "Try indexing fewer folders in config/document_sources.json, or run with "
+                "`ATHENA_DOCS_TIMEOUT=600 python3 scripts/athena_chat.py`."
+            ),
+        )
+
     output = result.stdout.strip()
     if result.stderr.strip():
         output = f"{output}\n{result.stderr.strip()}".strip()
@@ -185,6 +197,8 @@ def main() -> int:
             print("  /memory           show saved memory")
             print("  /remember <fact>  save a long-term memory")
             print("  /index            index files in rag/sources")
+            print("  /initdocs         create local document source config")
+            print("  /sources          show document source folders")
             print("  /search <query>   search local documents")
             print("  /askdocs <query>  answer using local documents")
             print("  /exit             quit")
@@ -214,6 +228,18 @@ def main() -> int:
             continue
         if user_text == "/index":
             return_code, output = run_docs_command(["index"])
+            prefix = "athena>" if return_code == 0 else "error>"
+            print(f"{prefix} {output}")
+            print()
+            continue
+        if user_text == "/initdocs":
+            return_code, output = run_docs_command(["init-sources"])
+            prefix = "athena>" if return_code == 0 else "error>"
+            print(f"{prefix} {output}")
+            print()
+            continue
+        if user_text == "/sources":
+            return_code, output = run_docs_command(["sources"])
             prefix = "athena>" if return_code == 0 else "error>"
             print(f"{prefix} {output}")
             print()

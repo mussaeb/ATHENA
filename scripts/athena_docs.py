@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import re
 import shutil
@@ -18,9 +19,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIR = PROJECT_ROOT / "rag" / "sources"
 INDEX_FILE = PROJECT_ROOT / "rag" / "index.json"
 SOURCE_CONFIG_FILE = PROJECT_ROOT / "config" / "document_sources.json"
+SOURCE_EXAMPLE_FILE = PROJECT_ROOT / "config" / "document_sources.example.json"
 CHUNK_SIZE = 900
 CHUNK_OVERLAP = 150
 MAX_FILE_BYTES = 5 * 1024 * 1024
+MAX_FILES = int(os.environ.get("ATHENA_DOCS_MAX_FILES", "250"))
+MAX_DEPTH = int(os.environ.get("ATHENA_DOCS_MAX_DEPTH", "5"))
 SUPPORTED_EXTENSIONS = {
     ".csv",
     ".docx",
@@ -51,6 +55,20 @@ SKIPPED_DIR_NAMES = {
     "node_modules",
     "venv",
 }
+
+
+def create_source_config(force: bool = False) -> bool:
+    if SOURCE_CONFIG_FILE.exists() and not force:
+        return False
+
+    if SOURCE_EXAMPLE_FILE.exists():
+        SOURCE_CONFIG_FILE.write_text(SOURCE_EXAMPLE_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+    else:
+        SOURCE_CONFIG_FILE.write_text(
+            json.dumps({"sources": [SOURCE_DIR.as_posix()]}, indent=2),
+            encoding="utf-8",
+        )
+    return True
 
 
 def normalize_text(text: str) -> str:
@@ -185,6 +203,14 @@ def load_source_dirs() -> list[Path]:
     return unique_dirs
 
 
+def configured_source_paths() -> list[str]:
+    if not SOURCE_CONFIG_FILE.exists():
+        return []
+
+    config = json.loads(SOURCE_CONFIG_FILE.read_text(encoding="utf-8"))
+    return list(config.get("sources", []))
+
+
 def should_skip_dir(path: Path) -> bool:
     return any(part in SKIPPED_DIR_NAMES for part in path.parts)
 
@@ -200,18 +226,35 @@ def iter_source_files() -> list[Path]:
     SOURCE_DIR.mkdir(parents=True, exist_ok=True)
     files = []
     for source_dir in load_source_dirs():
-        for path in source_dir.rglob("*"):
-            if path.is_dir() and should_skip_dir(path):
+        for dirpath, dirnames, filenames in os.walk(source_dir):
+            dir_path = Path(dirpath)
+            try:
+                depth = len(dir_path.relative_to(source_dir).parts)
+            except ValueError:
+                depth = 0
+            if depth >= MAX_DEPTH:
+                dirnames[:] = []
+
+            dirnames[:] = [
+                dirname
+                for dirname in dirnames
+                if dirname not in SKIPPED_DIR_NAMES and not dirname.startswith(".")
+            ]
+            if should_skip_dir(dir_path):
                 continue
-            if not path.is_file():
-                continue
-            if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
-                continue
-            if path.stat().st_size > MAX_FILE_BYTES:
-                continue
-            if should_skip_dir(path.parent):
-                continue
-            files.append(path)
+            for filename in filenames:
+                path = dir_path / filename
+                if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                    continue
+                try:
+                    file_size = path.stat().st_size
+                except OSError:
+                    continue
+                if file_size > MAX_FILE_BYTES:
+                    continue
+                files.append(path)
+                if len(files) >= MAX_FILES:
+                    return sorted(set(files))
 
     return sorted(set(files))
 
@@ -296,9 +339,31 @@ def format_results(results: list[dict]) -> str:
     return "\n".join(lines).strip()
 
 
+def print_sources() -> None:
+    print(f"Default source: {display_path(SOURCE_DIR)}")
+    print(f"Config file: {display_path(SOURCE_CONFIG_FILE)}")
+
+    configured = configured_source_paths()
+    if not configured:
+        print("Configured folders: none yet")
+        print("Run `python3 scripts/athena_docs.py init-sources` or use /initdocs in ATHENA chat.")
+        return
+
+    print("Configured folders:")
+    for raw_path in configured:
+        path = expand_user_path(raw_path)
+        status = "ok" if path.exists() and path.is_dir() else "missing"
+        print(f"- {raw_path} [{status}]")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Index and search ATHENA local documents.")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    init_parser = subparsers.add_parser("init-sources", help="Create config/document_sources.json from the example.")
+    init_parser.add_argument("--force", action="store_true", help="Overwrite the existing local source config.")
+
+    subparsers.add_parser("sources", help="Show configured document source folders.")
 
     subparsers.add_parser("index", help="Build the local document index.")
 
@@ -308,12 +373,28 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    if args.command == "init-sources":
+        created = create_source_config(force=args.force)
+        if created:
+            print(f"Created {display_path(SOURCE_CONFIG_FILE)}")
+        else:
+            print(f"{display_path(SOURCE_CONFIG_FILE)} already exists")
+        print("Edit it to choose which folders ATHENA may index.")
+        return 0
+
+    if args.command == "sources":
+        print_sources()
+        return 0
+
     if args.command == "index":
         index = build_index()
         print(f"Indexed {len(index['documents'])} chunks from {len(iter_source_files())} files.")
+        print(f"Limits: max files={MAX_FILES}, max depth={MAX_DEPTH}, max file size={MAX_FILE_BYTES // (1024 * 1024)} MB")
         print("Sources:")
         for source_dir in index["source_dirs"]:
             print(f"- {source_dir}")
+        if not SOURCE_CONFIG_FILE.exists():
+            print("No extra source config found. Create config/document_sources.json to index folders like Documents or Desktop.")
         if index["errors"]:
             print("Some files could not be indexed:")
             for error in index["errors"]:
