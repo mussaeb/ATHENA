@@ -107,6 +107,45 @@ def search_docs(query: str, limit: int = 4) -> str:
     return output
 
 
+def build_docs_message(query: str, docs_context: str) -> str:
+    return (
+        "Use the local document search results below to answer the user's question. "
+        "If the results do not contain the answer, say that the local documents do not contain enough information. "
+        "Do not invent personal details. Cite the document path and chunk number when useful.\n\n"
+        f"Question: {query}\n\n"
+        f"Local document search results:\n{docs_context}"
+    )
+
+
+def ask_with_docs(messages: list[dict[str, str]], query: str) -> tuple[str, str]:
+    docs_context = search_docs(query)
+    docs_message = build_docs_message(query, docs_context)
+    messages.append({"role": "user", "content": docs_message})
+    answer = ask_ollama(messages)
+    messages.append({"role": "assistant", "content": answer})
+    return answer, docs_context
+
+
+def is_known_command(user_text: str) -> bool:
+    exact_commands = {
+        "/help",
+        "/model",
+        "/memory",
+        "/index",
+        "/initdocs",
+        "/sources",
+        "/docmode",
+        "/docmode on",
+        "/docmode true",
+        "/docmode off",
+        "/docmode false",
+        "/exit",
+        "/quit",
+    }
+    prefix_commands = ("/remember ", "/search ", "/askdocs ", "/findfile ")
+    return user_text in exact_commands or user_text.startswith(prefix_commands)
+
+
 def ask_ollama(messages: list[dict[str, str]]) -> str:
     payload = {
         "model": MODEL,
@@ -164,12 +203,14 @@ def append_transcript(path: Path, role: str, content: str) -> None:
 def main() -> int:
     transcript_path = new_transcript_path()
     memory_context = load_memory()
+    docmode = False
 
     print(f"ATHENA local chat - model: {MODEL}")
     print(f"Context size: {NUM_CTX}")
     print("Local mode: no internet tools are connected yet.")
     print(f"Memory file: {MEMORY_FILE}")
     print("Document folder: rag/sources")
+    print("Document mode: off. Use /docmode on to search docs for normal questions.")
     print(f"Chat log: {transcript_path}")
     print("Type /help for commands or /exit to quit.")
     print()
@@ -199,6 +240,8 @@ def main() -> int:
             print("  /index            index files in rag/sources")
             print("  /initdocs         create local document source config")
             print("  /sources          show document source folders")
+            print("  /docmode on|off   use documents for normal questions")
+            print("  /findfile <name>  find source files by filename")
             print("  /search <query>   search local documents")
             print("  /askdocs <query>  answer using local documents")
             print("  /exit             quit")
@@ -206,6 +249,10 @@ def main() -> int:
             continue
         if user_text == "/model":
             print(f"athena> Active model: {MODEL}")
+            print()
+            continue
+        if user_text.startswith("/") and not is_known_command(user_text):
+            print("athena> Unknown command. Type /help to see available commands.")
             print()
             continue
         if user_text == "/memory":
@@ -244,6 +291,21 @@ def main() -> int:
             print(f"{prefix} {output}")
             print()
             continue
+        if user_text == "/docmode":
+            status = "on" if docmode else "off"
+            print(f"athena> Document mode is {status}. Use /docmode on or /docmode off.")
+            print()
+            continue
+        if user_text in {"/docmode on", "/docmode true"}:
+            docmode = True
+            print("athena> Document mode is on. Normal questions will use local document search.")
+            print()
+            continue
+        if user_text in {"/docmode off", "/docmode false"}:
+            docmode = False
+            print("athena> Document mode is off. Use /askdocs when you want document-backed answers.")
+            print()
+            continue
         if user_text.startswith("/search "):
             query = user_text.removeprefix("/search ").strip()
             if not query:
@@ -253,6 +315,17 @@ def main() -> int:
             print(f"athena> {search_docs(query)}")
             print()
             continue
+        if user_text.startswith("/findfile "):
+            query = user_text.removeprefix("/findfile ").strip()
+            if not query:
+                print("athena> Tell me what to find after /findfile.")
+                print()
+                continue
+            return_code, output = run_docs_command(["findfile", query])
+            prefix = "athena>" if return_code == 0 else "error>"
+            print(f"{prefix} {output}")
+            print()
+            continue
         if user_text.startswith("/askdocs "):
             query = user_text.removeprefix("/askdocs ").strip()
             if not query:
@@ -260,25 +333,15 @@ def main() -> int:
                 print()
                 continue
 
-            docs_context = search_docs(query)
-            docs_message = (
-                "Use the local document search results below to answer the user's question. "
-                "If the results do not contain the answer, say that the local documents do not contain enough information. "
-                "Cite the document path and chunk number when useful.\n\n"
-                f"Question: {query}\n\n"
-                f"Local document search results:\n{docs_context}"
-            )
-            messages.append({"role": "user", "content": docs_message})
             append_transcript(transcript_path, "user", f"/askdocs {query}")
-            append_transcript(transcript_path, "docs", docs_context)
 
             try:
-                answer = ask_ollama(messages)
+                answer, docs_context = ask_with_docs(messages, query)
             except RuntimeError as exc:
                 print(f"error> {exc}")
                 return 1
 
-            messages.append({"role": "assistant", "content": answer})
+            append_transcript(transcript_path, "docs", docs_context)
             append_transcript(transcript_path, "assistant", answer)
             print(f"athena> {answer}")
             print()
@@ -290,12 +353,16 @@ def main() -> int:
         append_transcript(transcript_path, "user", user_text)
 
         try:
-            answer = ask_ollama(messages)
+            if docmode:
+                answer, docs_context = ask_with_docs(messages, user_text)
+                append_transcript(transcript_path, "docs", docs_context)
+            else:
+                answer = ask_ollama(messages)
+                messages.append({"role": "assistant", "content": answer})
         except RuntimeError as exc:
             print(f"error> {exc}")
             return 1
 
-        messages.append({"role": "assistant", "content": answer})
         append_transcript(transcript_path, "assistant", answer)
         print(f"athena> {answer}")
         print()

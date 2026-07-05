@@ -58,7 +58,11 @@ Useful chat commands:
 /model
 /memory
 /remember My Mac has 8 GB memory.
+/initdocs
+/sources
 /index
+/docmode on
+/findfile resume
 /search ATHENA memory
 /askdocs what can ATHENA do now?
 /exit

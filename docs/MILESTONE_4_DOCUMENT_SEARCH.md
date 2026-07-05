@@ -131,6 +131,12 @@ Use your real topic in place of `ATHENA memory`. For example:
 /search resume python
 ```
 
+Find files by name:
+
+```text
+/findfile resume
+```
+
 From the terminal:
 
 ```bash
@@ -146,6 +152,28 @@ From ATHENA chat:
 ```
 
 ATHENA will search local documents, pass the matching chunks to the model, and answer from those results.
+
+Normal chat questions do not use documents unless document mode is on.
+
+Turn document mode on:
+
+```text
+/docmode on
+```
+
+Then normal questions will use local document search:
+
+```text
+what experience do I have with Kubernetes?
+```
+
+Turn it off:
+
+```text
+/docmode off
+```
+
+If you type an unknown slash command like `/indexes`, ATHENA will show a command help hint instead of sending it to the model.
 
 ## PDF Support
 

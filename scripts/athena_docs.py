@@ -25,6 +25,7 @@ CHUNK_OVERLAP = 150
 MAX_FILE_BYTES = 5 * 1024 * 1024
 MAX_FILES = int(os.environ.get("ATHENA_DOCS_MAX_FILES", "250"))
 MAX_DEPTH = int(os.environ.get("ATHENA_DOCS_MAX_DEPTH", "5"))
+MAX_FIND_FILES = int(os.environ.get("ATHENA_DOCS_MAX_FIND_FILES", "5000"))
 SUPPORTED_EXTENSIONS = {
     ".csv",
     ".docx",
@@ -81,6 +82,10 @@ def normalize_text(text: str) -> str:
 
 def tokenize(text: str) -> set[str]:
     return {token for token in re.findall(r"[a-zA-Z0-9_]{3,}", text.lower())}
+
+
+def searchable_text(path: str, chunk: str) -> str:
+    return f"{path}\n{chunk}"
 
 
 def read_text_file(path: Path) -> str:
@@ -278,7 +283,7 @@ def build_index() -> dict:
                     "path": relative_path,
                     "chunk": chunk_number,
                     "text": chunk,
-                    "tokens": sorted(tokenize(chunk)),
+                    "tokens": sorted(tokenize(searchable_text(relative_path, chunk))),
                 }
             )
 
@@ -326,6 +331,43 @@ def search_index(query: str, limit: int = 5) -> list[dict]:
     return sorted(results, key=lambda result: result["score"], reverse=True)[:limit]
 
 
+def find_files(query: str, limit: int = 20) -> list[Path]:
+    query_tokens = tokenize(query)
+    if not query_tokens:
+        return []
+
+    matches = []
+    scanned = 0
+    for source_dir in load_source_dirs():
+        for dirpath, dirnames, filenames in os.walk(source_dir):
+            dir_path = Path(dirpath)
+            try:
+                depth = len(dir_path.relative_to(source_dir).parts)
+            except ValueError:
+                depth = 0
+            if depth >= MAX_DEPTH:
+                dirnames[:] = []
+
+            dirnames[:] = [
+                dirname
+                for dirname in dirnames
+                if dirname not in SKIPPED_DIR_NAMES and not dirname.startswith(".")
+            ]
+            if should_skip_dir(dir_path):
+                continue
+
+            for filename in filenames:
+                path = dir_path / filename
+                scanned += 1
+                if query_tokens & tokenize(display_path(path)):
+                    matches.append(path)
+                    if len(matches) >= limit:
+                        return matches
+                if scanned >= MAX_FIND_FILES:
+                    return matches
+    return matches
+
+
 def format_results(results: list[dict]) -> str:
     if not results:
         return "No matching local documents found."
@@ -337,6 +379,13 @@ def format_results(results: list[dict]) -> str:
         lines.append("")
 
     return "\n".join(lines).strip()
+
+
+def format_file_results(results: list[Path]) -> str:
+    if not results:
+        return "No matching files found."
+
+    return "\n".join(f"- {display_path(path)}" for path in results)
 
 
 def print_sources() -> None:
@@ -371,6 +420,10 @@ def main() -> int:
     search_parser.add_argument("query", nargs="+")
     search_parser.add_argument("--limit", type=int, default=5)
 
+    find_parser = subparsers.add_parser("findfile", help="Find source files by filename or path.")
+    find_parser.add_argument("query", nargs="+")
+    find_parser.add_argument("--limit", type=int, default=20)
+
     args = parser.parse_args()
 
     if args.command == "init-sources":
@@ -404,6 +457,11 @@ def main() -> int:
     if args.command == "search":
         results = search_index(" ".join(args.query), limit=args.limit)
         print(format_results(results))
+        return 0
+
+    if args.command == "findfile":
+        results = find_files(" ".join(args.query), limit=args.limit)
+        print(format_file_results(results))
         return 0
 
     return 1
