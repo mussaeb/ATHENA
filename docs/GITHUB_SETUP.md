@@ -64,6 +64,14 @@ git add .gitignore README.md docs/SETUP_MAC_8GB.md docs/MILESTONE_2_HISTORY.md d
 git commit -m "Add local-mode guardrails, chat history, and memory"
 ```
 
+For document search:
+
+```bash
+cd /Users/home/ATHENA
+git add .gitignore README.md config/document_sources.example.json docs/GITHUB_SETUP.md docs/ROADMAP.md docs/MILESTONE_4_DOCUMENT_SEARCH.md scripts/athena_chat.py scripts/athena_docs.py rag/sources/.gitkeep rag/sources/athena-overview.md
+git commit -m "Add lightweight local document search"
+```
+
 Then push:
 
 ```bash

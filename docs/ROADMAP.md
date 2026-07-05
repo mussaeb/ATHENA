@@ -37,6 +37,8 @@ Status: implemented with `memory/profile.md` and the `/remember` command.
 
 Done when ATHENA can answer questions from your own documents.
 
+Status: implemented with `rag/sources`, `scripts/athena_docs.py`, `/search`, and `/askdocs`.
+
 ## Phase 5: Internet Search
 
 - Add search tool integration

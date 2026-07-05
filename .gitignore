@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .env
+config/document_sources.json
 .venv/
 venv/
 logs/*
@@ -9,3 +10,7 @@ logs/*
 models/*
 !models/.gitkeep
 memory/private.md
+rag/index.json
+rag/sources/*
+!rag/sources/.gitkeep
+!rag/sources/athena-overview.md

@@ -16,6 +16,7 @@ Included now:
 - Dependency-free Python Ollama chat client
 - Local chat history
 - Simple long-term memory
+- Lightweight local document search
 - Example configuration file
 
 ## Quick Start
@@ -57,6 +58,9 @@ Useful chat commands:
 /model
 /memory
 /remember My Mac has 8 GB memory.
+/index
+/search ATHENA memory
+/askdocs what can ATHENA do now?
 /exit
 ```
 
@@ -106,6 +110,10 @@ On this Mac, ATHENA should begin as a terminal assistant. Once the core works, w
 5. Add internet search
 6. Add voice input and output
 7. Add infrastructure tools
+
+Document search details are in [docs/MILESTONE_4_DOCUMENT_SEARCH.md](docs/MILESTONE_4_DOCUMENT_SEARCH.md).
+
+By default ATHENA searches `rag/sources/`. To let it search other folders on your Mac, copy `config/document_sources.example.json` to `config/document_sources.json` and add only the folders you want ATHENA to index.
 
 ## GitHub
 

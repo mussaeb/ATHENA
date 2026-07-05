@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from datetime import datetime
 from pathlib import Path
 import urllib.error
@@ -17,6 +18,7 @@ NUM_CTX = int(os.environ.get("ATHENA_NUM_CTX", "1536"))
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CHAT_LOG_DIR = PROJECT_ROOT / "logs" / "chats"
 MEMORY_FILE = PROJECT_ROOT / "memory" / "profile.md"
+DOCS_SCRIPT = PROJECT_ROOT / "scripts" / "athena_docs.py"
 MAX_MEMORY_CHARS = 6000
 SYSTEM_PROMPT = os.environ.get(
     "ATHENA_SYSTEM_PROMPT",
@@ -69,6 +71,28 @@ def show_memory() -> None:
     print()
     print(MEMORY_FILE.read_text(encoding="utf-8").strip())
     print()
+
+
+def run_docs_command(args: list[str]) -> tuple[int, str]:
+    result = subprocess.run(
+        ["python3", str(DOCS_SCRIPT), *args],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=PROJECT_ROOT,
+        timeout=90,
+    )
+    output = result.stdout.strip()
+    if result.stderr.strip():
+        output = f"{output}\n{result.stderr.strip()}".strip()
+    return result.returncode, output
+
+
+def search_docs(query: str, limit: int = 4) -> str:
+    return_code, output = run_docs_command(["search", query, "--limit", str(limit)])
+    if return_code != 0:
+        return f"Document search failed:\n{output}"
+    return output
 
 
 def ask_ollama(messages: list[dict[str, str]]) -> str:
@@ -133,6 +157,7 @@ def main() -> int:
     print(f"Context size: {NUM_CTX}")
     print("Local mode: no internet tools are connected yet.")
     print(f"Memory file: {MEMORY_FILE}")
+    print("Document folder: rag/sources")
     print(f"Chat log: {transcript_path}")
     print("Type /help for commands or /exit to quit.")
     print()
@@ -159,6 +184,9 @@ def main() -> int:
             print("  /model            show the active model")
             print("  /memory           show saved memory")
             print("  /remember <fact>  save a long-term memory")
+            print("  /index            index files in rag/sources")
+            print("  /search <query>   search local documents")
+            print("  /askdocs <query>  answer using local documents")
             print("  /exit             quit")
             print()
             continue
@@ -182,6 +210,51 @@ def main() -> int:
             messages.insert(1, {"role": "system", "content": memory_context})
             append_transcript(transcript_path, "memory", fact)
             print("athena> Remembered.")
+            print()
+            continue
+        if user_text == "/index":
+            return_code, output = run_docs_command(["index"])
+            prefix = "athena>" if return_code == 0 else "error>"
+            print(f"{prefix} {output}")
+            print()
+            continue
+        if user_text.startswith("/search "):
+            query = user_text.removeprefix("/search ").strip()
+            if not query:
+                print("athena> Tell me what to search for after /search.")
+                print()
+                continue
+            print(f"athena> {search_docs(query)}")
+            print()
+            continue
+        if user_text.startswith("/askdocs "):
+            query = user_text.removeprefix("/askdocs ").strip()
+            if not query:
+                print("athena> Tell me what to ask after /askdocs.")
+                print()
+                continue
+
+            docs_context = search_docs(query)
+            docs_message = (
+                "Use the local document search results below to answer the user's question. "
+                "If the results do not contain the answer, say that the local documents do not contain enough information. "
+                "Cite the document path and chunk number when useful.\n\n"
+                f"Question: {query}\n\n"
+                f"Local document search results:\n{docs_context}"
+            )
+            messages.append({"role": "user", "content": docs_message})
+            append_transcript(transcript_path, "user", f"/askdocs {query}")
+            append_transcript(transcript_path, "docs", docs_context)
+
+            try:
+                answer = ask_ollama(messages)
+            except RuntimeError as exc:
+                print(f"error> {exc}")
+                return 1
+
+            messages.append({"role": "assistant", "content": answer})
+            append_transcript(transcript_path, "assistant", answer)
+            print(f"athena> {answer}")
             print()
             continue
         if user_text in {"/exit", "/quit"}:

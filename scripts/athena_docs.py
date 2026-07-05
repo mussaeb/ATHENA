@@ -1,0 +1,332 @@
+#!/usr/bin/env python3
+"""Lightweight local document indexing and search for ATHENA."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import shutil
+import subprocess
+import zipfile
+from html import unescape
+from pathlib import Path
+from xml.etree import ElementTree
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SOURCE_DIR = PROJECT_ROOT / "rag" / "sources"
+INDEX_FILE = PROJECT_ROOT / "rag" / "index.json"
+SOURCE_CONFIG_FILE = PROJECT_ROOT / "config" / "document_sources.json"
+CHUNK_SIZE = 900
+CHUNK_OVERLAP = 150
+MAX_FILE_BYTES = 5 * 1024 * 1024
+SUPPORTED_EXTENSIONS = {
+    ".csv",
+    ".docx",
+    ".json",
+    ".log",
+    ".md",
+    ".pdf",
+    ".py",
+    ".text",
+    ".txt",
+    ".tsv",
+    ".xlsx",
+    ".yaml",
+    ".yml",
+}
+SKIPPED_DIR_NAMES = {
+    ".Trash",
+    ".cache",
+    ".git",
+    ".npm",
+    ".ollama",
+    ".ssh",
+    ".venv",
+    "Applications",
+    "Library",
+    "Movies",
+    "Music",
+    "node_modules",
+    "venv",
+}
+
+
+def normalize_text(text: str) -> str:
+    text = unescape(text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def tokenize(text: str) -> set[str]:
+    return {token for token in re.findall(r"[a-zA-Z0-9_]{3,}", text.lower())}
+
+
+def read_text_file(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def read_docx(path: Path) -> str:
+    parts: list[str] = []
+    with zipfile.ZipFile(path) as archive:
+        with archive.open("word/document.xml") as document:
+            root = ElementTree.fromstring(document.read())
+
+    for node in root.iter():
+        if node.tag.endswith("}t") and node.text:
+            parts.append(node.text)
+        elif node.tag.endswith("}p"):
+            parts.append("\n")
+
+    return " ".join(parts)
+
+
+def read_xlsx(path: Path) -> str:
+    parts: list[str] = []
+    with zipfile.ZipFile(path) as archive:
+        shared_strings = []
+        if "xl/sharedStrings.xml" in archive.namelist():
+            root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
+            for item in root.iter():
+                if item.tag.endswith("}t") and item.text:
+                    shared_strings.append(item.text)
+
+        for name in archive.namelist():
+            if not name.startswith("xl/worksheets/") or not name.endswith(".xml"):
+                continue
+            root = ElementTree.fromstring(archive.read(name))
+            for node in root.iter():
+                if not node.tag.endswith("}v") or node.text is None:
+                    continue
+                value = node.text
+                if value.isdigit():
+                    index = int(value)
+                    if 0 <= index < len(shared_strings):
+                        value = shared_strings[index]
+                parts.append(value)
+
+    return "\n".join(parts)
+
+
+def read_pdf(path: Path) -> str:
+    pdftotext = shutil.which("pdftotext")
+    if not pdftotext:
+        raise RuntimeError("PDF support needs `pdftotext`. Install with `brew install poppler`.")
+
+    result = subprocess.run(
+        [pdftotext, str(path), "-"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "pdftotext failed")
+
+    return result.stdout
+
+
+def read_document(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix in {".csv", ".json", ".log", ".md", ".py", ".text", ".txt", ".tsv", ".yaml", ".yml"}:
+        return read_text_file(path)
+    if suffix == ".docx":
+        return read_docx(path)
+    if suffix == ".xlsx":
+        return read_xlsx(path)
+    if suffix == ".pdf":
+        return read_pdf(path)
+
+    raise RuntimeError(f"Unsupported file type: {suffix}")
+
+
+def chunk_text(text: str) -> list[str]:
+    text = normalize_text(text)
+    if not text:
+        return []
+
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = min(start + CHUNK_SIZE, len(text))
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        if end == len(text):
+            break
+        start = max(0, end - CHUNK_OVERLAP)
+
+    return chunks
+
+
+def expand_user_path(path: str) -> Path:
+    return Path(path).expanduser().resolve()
+
+
+def load_source_dirs() -> list[Path]:
+    dirs = [SOURCE_DIR]
+    if SOURCE_CONFIG_FILE.exists():
+        config = json.loads(SOURCE_CONFIG_FILE.read_text(encoding="utf-8"))
+        for raw_path in config.get("sources", []):
+            path = expand_user_path(raw_path)
+            if path.exists() and path.is_dir():
+                dirs.append(path)
+
+    seen = set()
+    unique_dirs = []
+    for path in dirs:
+        key = path.as_posix()
+        if key not in seen:
+            unique_dirs.append(path)
+            seen.add(key)
+    return unique_dirs
+
+
+def should_skip_dir(path: Path) -> bool:
+    return any(part in SKIPPED_DIR_NAMES for part in path.parts)
+
+
+def display_path(path: Path) -> str:
+    try:
+        return path.relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def iter_source_files() -> list[Path]:
+    SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+    files = []
+    for source_dir in load_source_dirs():
+        for path in source_dir.rglob("*"):
+            if path.is_dir() and should_skip_dir(path):
+                continue
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                continue
+            if path.stat().st_size > MAX_FILE_BYTES:
+                continue
+            if should_skip_dir(path.parent):
+                continue
+            files.append(path)
+
+    return sorted(set(files))
+
+
+def build_index() -> dict:
+    documents = []
+    errors = []
+
+    for path in iter_source_files():
+        relative_path = display_path(path)
+        try:
+            text = read_document(path)
+            chunks = chunk_text(text)
+        except Exception as exc:  # noqa: BLE001 - report per-file extraction failures.
+            errors.append({"path": relative_path, "error": str(exc)})
+            continue
+
+        for chunk_number, chunk in enumerate(chunks, start=1):
+            documents.append(
+                {
+                    "path": relative_path,
+                    "chunk": chunk_number,
+                    "text": chunk,
+                    "tokens": sorted(tokenize(chunk)),
+                }
+            )
+
+    index = {
+        "version": 1,
+        "source_dirs": [display_path(path) for path in load_source_dirs()],
+        "documents": documents,
+        "errors": errors,
+    }
+    INDEX_FILE.parent.mkdir(parents=True, exist_ok=True)
+    INDEX_FILE.write_text(json.dumps(index, indent=2, ensure_ascii=True), encoding="utf-8")
+    return index
+
+
+def load_index() -> dict:
+    if not INDEX_FILE.exists():
+        return build_index()
+
+    return json.loads(INDEX_FILE.read_text(encoding="utf-8"))
+
+
+def search_index(query: str, limit: int = 5) -> list[dict]:
+    index = load_index()
+    query_tokens = tokenize(query)
+    if not query_tokens:
+        return []
+
+    results = []
+    for item in index.get("documents", []):
+        item_tokens = set(item.get("tokens", []))
+        overlap = query_tokens & item_tokens
+        if not overlap:
+            continue
+        score = len(overlap) / max(len(query_tokens), 1)
+        results.append(
+            {
+                "score": score,
+                "path": item["path"],
+                "chunk": item["chunk"],
+                "text": item["text"],
+                "matched_terms": sorted(overlap),
+            }
+        )
+
+    return sorted(results, key=lambda result: result["score"], reverse=True)[:limit]
+
+
+def format_results(results: list[dict]) -> str:
+    if not results:
+        return "No matching local documents found."
+
+    lines = []
+    for number, result in enumerate(results, start=1):
+        lines.append(f"[{number}] {result['path']}#chunk-{result['chunk']} score={result['score']:.2f}")
+        lines.append(result["text"])
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Index and search ATHENA local documents.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    subparsers.add_parser("index", help="Build the local document index.")
+
+    search_parser = subparsers.add_parser("search", help="Search the local document index.")
+    search_parser.add_argument("query", nargs="+")
+    search_parser.add_argument("--limit", type=int, default=5)
+
+    args = parser.parse_args()
+
+    if args.command == "index":
+        index = build_index()
+        print(f"Indexed {len(index['documents'])} chunks from {len(iter_source_files())} files.")
+        print("Sources:")
+        for source_dir in index["source_dirs"]:
+            print(f"- {source_dir}")
+        if index["errors"]:
+            print("Some files could not be indexed:")
+            for error in index["errors"]:
+                print(f"- {error['path']}: {error['error']}")
+        return 0
+
+    if args.command == "search":
+        results = search_index(" ".join(args.query), limit=args.limit)
+        print(format_results(results))
+        return 0
+
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
