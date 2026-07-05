@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+logs/*
+!logs/.gitkeep
+models/*
+!models/.gitkeep
+memory/*
+!memory/.gitkeep

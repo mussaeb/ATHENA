@@ -1,0 +1,97 @@
+# ATHENA Setup for an 8 GB Apple Silicon Mac
+
+This setup is designed for a MacBook M1 Pro with limited memory. The goal is to get a useful assistant running without overloading the machine.
+
+## Recommended Starting Stack
+
+- macOS on Apple Silicon
+- Python 3
+- Ollama
+- One small local model
+- Terminal-based ATHENA client
+
+Avoid starting with Docker, Open WebUI, vector databases, or Kubernetes. They are useful later, but they add memory pressure too early.
+
+## Step 1: Check the Mac
+
+From the ATHENA folder:
+
+```bash
+python3 scripts/athena_check.py
+```
+
+You want to see:
+
+- Apple Silicon detected
+- Python detected
+- Ollama detected after installation
+- Docker optional
+
+## Step 2: Install Ollama
+
+Download Ollama:
+
+[https://ollama.com/download](https://ollama.com/download)
+
+After installation, check:
+
+```bash
+ollama --version
+```
+
+## Step 3: Pull a Small Model
+
+Start here:
+
+```bash
+ollama pull qwen2.5:1.5b
+```
+
+This is the best first model for an 8 GB machine because it leaves enough memory for macOS and your editor.
+
+If performance is good, try:
+
+```bash
+ollama pull qwen2.5:3b
+```
+
+Avoid larger models at this stage. A 7B model may run, but on 8 GB it can feel slow and can cause memory pressure.
+
+## Step 4: Run ATHENA Chat
+
+```bash
+python3 scripts/athena_chat.py
+```
+
+To use a different model:
+
+```bash
+ATHENA_MODEL=qwen2.5:3b python3 scripts/athena_chat.py
+```
+
+To quit:
+
+```text
+/exit
+```
+
+## Step 5: Keep Memory Stable
+
+When using ATHENA on 8 GB:
+
+- Close unused browser tabs
+- Quit Docker Desktop unless needed
+- Use one local model at a time
+- Prefer terminal chat before adding a web UI
+- Restart Ollama if the machine feels slow
+
+## Later Upgrade Path
+
+When you move to a machine with 32 GB or more memory, ATHENA can comfortably add:
+
+- Open WebUI
+- Chroma or Qdrant for memory and document search
+- faster-whisper for voice input
+- Piper or another local text-to-speech engine
+- Docker Compose services
+- Kubernetes and OpenStack tool integrations
