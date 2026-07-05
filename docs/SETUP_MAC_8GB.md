@@ -63,6 +63,22 @@ Avoid larger models at this stage. A 7B model may run, but on 8 GB it can feel s
 python3 scripts/athena_chat.py
 ```
 
+ATHENA is offline at this stage. Ollama does not automatically connect the model to the internet.
+
+If you ask:
+
+```text
+did you check the internet?
+```
+
+the correct behavior is:
+
+```text
+No. I am running locally and no internet search tool is connected yet.
+```
+
+Small models can sometimes claim they searched the web even when they did not. This is why the ATHENA system prompt now explicitly tells the model not to claim internet access.
+
 To use a different model:
 
 ```bash
@@ -73,6 +89,12 @@ To quit:
 
 ```text
 /exit
+```
+
+Chat logs are saved automatically in:
+
+```text
+logs/chats/
 ```
 
 ## Step 5: Keep Memory Stable

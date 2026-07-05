@@ -8,5 +8,4 @@ logs/*
 !logs/.gitkeep
 models/*
 !models/.gitkeep
-memory/*
-!memory/.gitkeep
+memory/private.md

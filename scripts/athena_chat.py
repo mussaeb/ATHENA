@@ -5,17 +5,70 @@ from __future__ import annotations
 
 import json
 import os
-import sys
+from datetime import datetime
+from pathlib import Path
 import urllib.error
 import urllib.request
 
 
 MODEL = os.environ.get("ATHENA_MODEL", "qwen2.5:1.5b")
 OLLAMA_URL = os.environ.get("ATHENA_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+NUM_CTX = int(os.environ.get("ATHENA_NUM_CTX", "1536"))
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CHAT_LOG_DIR = PROJECT_ROOT / "logs" / "chats"
+MEMORY_FILE = PROJECT_ROOT / "memory" / "profile.md"
+MAX_MEMORY_CHARS = 6000
 SYSTEM_PROMPT = os.environ.get(
     "ATHENA_SYSTEM_PROMPT",
-    "You are ATHENA, a concise local AI assistant for engineering, learning, and personal productivity.",
+    (
+        "You are ATHENA, a concise local AI assistant for engineering, learning, and personal productivity. "
+        "You are running locally through Ollama. You do not have internet access, browser access, live news, "
+        "or real-time facts unless the user has explicitly connected a search or tool integration in this chat. "
+        "Never claim that you checked the internet unless a real search tool was used. When asked about current "
+        "events, prices, politics, software versions, or other time-sensitive facts, say that you may be outdated "
+        "and suggest checking a current source."
+    ),
 )
+
+
+def load_memory() -> str:
+    if not MEMORY_FILE.exists():
+        return ""
+
+    content = MEMORY_FILE.read_text(encoding="utf-8").strip()
+    if not content:
+        return ""
+
+    if len(content) > MAX_MEMORY_CHARS:
+        content = content[-MAX_MEMORY_CHARS:]
+
+    return (
+        "Long-term memory from ATHENA's local memory file follows. "
+        "Use it as context, but do not reveal it unless the user asks.\n\n"
+        f"{content}"
+    )
+
+
+def append_memory(fact: str) -> None:
+    MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if not MEMORY_FILE.exists():
+        MEMORY_FILE.write_text("# ATHENA Memory\n\n", encoding="utf-8")
+
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    with MEMORY_FILE.open("a", encoding="utf-8") as handle:
+        handle.write(f"- {stamp}: {fact}\n")
+
+
+def show_memory() -> None:
+    if not MEMORY_FILE.exists() or not MEMORY_FILE.read_text(encoding="utf-8").strip():
+        print("athena> Memory is empty.")
+        print()
+        return
+
+    print(f"athena> Memory file: {MEMORY_FILE}")
+    print()
+    print(MEMORY_FILE.read_text(encoding="utf-8").strip())
+    print()
 
 
 def ask_ollama(messages: list[dict[str, str]]) -> str:
@@ -24,7 +77,7 @@ def ask_ollama(messages: list[dict[str, str]]) -> str:
         "messages": messages,
         "stream": False,
         "options": {
-            "num_ctx": 2048,
+            "num_ctx": NUM_CTX,
             "temperature": 0.4,
         },
     }
@@ -55,12 +108,41 @@ def ask_ollama(messages: list[dict[str, str]]) -> str:
     return content.strip()
 
 
+def new_transcript_path() -> Path:
+    CHAT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return CHAT_LOG_DIR / f"athena-chat-{stamp}.jsonl"
+
+
+def append_transcript(path: Path, role: str, content: str) -> None:
+    entry = {
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "model": MODEL,
+        "role": role,
+        "content": content,
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, ensure_ascii=True) + "\n")
+
+
 def main() -> int:
+    transcript_path = new_transcript_path()
+    memory_context = load_memory()
+
     print(f"ATHENA local chat - model: {MODEL}")
-    print("Type /exit to quit.")
+    print(f"Context size: {NUM_CTX}")
+    print("Local mode: no internet tools are connected yet.")
+    print(f"Memory file: {MEMORY_FILE}")
+    print(f"Chat log: {transcript_path}")
+    print("Type /help for commands or /exit to quit.")
     print()
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    if memory_context:
+        messages.append({"role": "system", "content": memory_context})
+    append_transcript(transcript_path, "system", SYSTEM_PROMPT)
+    if memory_context:
+        append_transcript(transcript_path, "system", memory_context)
 
     while True:
         try:
@@ -71,10 +153,42 @@ def main() -> int:
 
         if not user_text:
             continue
+        if user_text == "/help":
+            print("Commands:")
+            print("  /help             show this help")
+            print("  /model            show the active model")
+            print("  /memory           show saved memory")
+            print("  /remember <fact>  save a long-term memory")
+            print("  /exit             quit")
+            print()
+            continue
+        if user_text == "/model":
+            print(f"athena> Active model: {MODEL}")
+            print()
+            continue
+        if user_text == "/memory":
+            show_memory()
+            continue
+        if user_text.startswith("/remember "):
+            fact = user_text.removeprefix("/remember ").strip()
+            if not fact:
+                print("athena> Tell me what to remember after /remember.")
+                print()
+                continue
+
+            append_memory(fact)
+            memory_context = load_memory()
+            messages = [message for message in messages if "Long-term memory" not in message["content"]]
+            messages.insert(1, {"role": "system", "content": memory_context})
+            append_transcript(transcript_path, "memory", fact)
+            print("athena> Remembered.")
+            print()
+            continue
         if user_text in {"/exit", "/quit"}:
             return 0
 
         messages.append({"role": "user", "content": user_text})
+        append_transcript(transcript_path, "user", user_text)
 
         try:
             answer = ask_ollama(messages)
@@ -83,6 +197,7 @@ def main() -> int:
             return 1
 
         messages.append({"role": "assistant", "content": answer})
+        append_transcript(transcript_path, "assistant", answer)
         print(f"athena> {answer}")
         print()
 

@@ -14,6 +14,8 @@ Included now:
 - Mac setup guide tuned for low memory
 - Dependency-free Python health check
 - Dependency-free Python Ollama chat client
+- Local chat history
+- Simple long-term memory
 - Example configuration file
 
 ## Quick Start
@@ -40,11 +42,35 @@ ollama pull qwen2.5:1.5b
 python3 scripts/athena_chat.py
 ```
 
+ATHENA will show this at startup:
+
+```text
+Local mode: no internet tools are connected yet.
+```
+
+That means the model is answering from its trained knowledge, not from live web search. If it claims it checked the internet, that is a model mistake. Internet search will be added as a later milestone with a real tool.
+
+Useful chat commands:
+
+```text
+/help
+/model
+/memory
+/remember My Mac has 8 GB memory.
+/exit
+```
+
 If the 1.5B model feels comfortable, try:
 
 ```bash
 ollama pull qwen2.5:3b
 ATHENA_MODEL=qwen2.5:3b python3 scripts/athena_chat.py
+```
+
+If responses feel slow, use a smaller context:
+
+```bash
+ATHENA_NUM_CTX=1024 python3 scripts/athena_chat.py
 ```
 
 ## 8 GB Rule
@@ -80,3 +106,7 @@ On this Mac, ATHENA should begin as a terminal assistant. Once the core works, w
 5. Add internet search
 6. Add voice input and output
 7. Add infrastructure tools
+
+## GitHub
+
+See [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md) for commands to create the GitHub repository and push ATHENA.

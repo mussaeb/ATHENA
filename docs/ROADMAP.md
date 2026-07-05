@@ -27,6 +27,8 @@ Done when ATHENA can recall earlier conversation files.
 
 Done when ATHENA can remember stable facts like project names, people, and preferences.
 
+Status: implemented with `memory/profile.md` and the `/remember` command.
+
 ## Phase 4: Document Search
 
 - Add a documents folder
