@@ -1,6 +1,6 @@
 # ATHENA Roadmap
 
-Each milestone should leave the project in a working state.
+Each milestone should leave the project in a working state. These milestones are implemented in the lightweight, standard-library form that fits an 8 GB machine.
 
 ## Phase 1: Foundation
 
@@ -11,6 +11,8 @@ Each milestone should leave the project in a working state.
 
 Done when ATHENA can talk to a local Ollama model from the terminal.
 
+Status: implemented in `scripts/athena_check.py` and `scripts/athena_chat.py`.
+
 ## Phase 2: Conversation History
 
 - Save chats to local files
@@ -18,6 +20,8 @@ Done when ATHENA can talk to a local Ollama model from the terminal.
 - Add basic search over past chats
 
 Done when ATHENA can recall earlier conversation files.
+
+Status: implemented with `logs/chats`, `/name`, `/sessions`, `/history`, and `/recall`.
 
 ## Phase 3: Personal Memory
 
@@ -27,7 +31,7 @@ Done when ATHENA can recall earlier conversation files.
 
 Done when ATHENA can remember stable facts like project names, people, and preferences.
 
-Status: implemented with `memory/profile.md` and the `/remember` command.
+Status: implemented with `memory/profile.md` and `/remember`.
 
 ## Phase 4: Document Search
 
@@ -47,6 +51,8 @@ Status: implemented with `rag/sources`, `scripts/athena_docs.py`, `/search`, and
 
 Done when ATHENA can answer questions that need fresh information.
 
+Status: implemented with `scripts/athena_web.py`, `/web`, `/askweb`, and `/webmode`. Results keep their URLs.
+
 ## Phase 6: Voice
 
 - Add speech-to-text
@@ -54,6 +60,8 @@ Done when ATHENA can answer questions that need fresh information.
 - Add push-to-talk first, wake word later
 
 Done when you can speak to ATHENA and hear the response.
+
+Status: text-to-speech and one-shot push-to-talk are implemented in `scripts/athena_voice.py`. A wake word is still later.
 
 ## Phase 7: Coding Assistant
 
@@ -64,6 +72,8 @@ Done when you can speak to ATHENA and hear the response.
 
 Done when ATHENA can help edit and verify local code.
 
+Status: implemented with `/git`, `/read`, `/files`, `/test`, `/propose`, and `/apply yes`.
+
 ## Phase 8: Infrastructure Assistant
 
 - Add Docker helpers
@@ -73,6 +83,8 @@ Done when ATHENA can help edit and verify local code.
 
 Done when ATHENA can inspect infrastructure safely and explain issues.
 
+Status: implemented as read-only checks in `scripts/athena_infra.py`.
+
 ## Phase 9: Agents and Automation
 
 - Add planned tool use
@@ -81,3 +93,13 @@ Done when ATHENA can inspect infrastructure safely and explain issues.
 - Add safety logs
 
 Done when ATHENA can perform multi-step tasks with user approval.
+
+Status: `/plan`, `/approve`, and `/reject` run an allowlist one step at a time. Each approval or file write is appended to `logs/safety/safety.jsonl`. Scheduled checks are still later.
+
+## Later, On A Larger Machine
+
+- Web UI
+- Vector search
+- Wake word
+- Scheduled checks
+- Infrastructure changes, still behind an approval gate

@@ -14,6 +14,8 @@ from html import unescape
 from pathlib import Path
 from xml.etree import ElementTree
 
+from athena_common import tokenize
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIR = PROJECT_ROOT / "rag" / "sources"
@@ -80,10 +82,6 @@ def normalize_text(text: str) -> str:
     return text.strip()
 
 
-def tokenize(text: str) -> set[str]:
-    return {token for token in re.findall(r"[a-zA-Z0-9_]{3,}", text.lower())}
-
-
 def searchable_text(path: str, chunk: str) -> str:
     return f"{path}\n{chunk}"
 
@@ -93,18 +91,18 @@ def read_text_file(path: Path) -> str:
 
 
 def read_docx(path: Path) -> str:
-    parts: list[str] = []
     with zipfile.ZipFile(path) as archive:
         with archive.open("word/document.xml") as document:
             root = ElementTree.fromstring(document.read())
 
+    paragraphs = []
     for node in root.iter():
-        if node.tag.endswith("}t") and node.text:
-            parts.append(node.text)
-        elif node.tag.endswith("}p"):
-            parts.append("\n")
-
-    return " ".join(parts)
+        if not node.tag.endswith("}p"):
+            continue
+        texts = [item.text for item in node.iter() if item.tag.endswith("}t") and item.text]
+        if texts:
+            paragraphs.append("".join(texts))
+    return "\n".join(paragraphs)
 
 
 def read_xlsx(path: Path) -> str:
@@ -113,19 +111,31 @@ def read_xlsx(path: Path) -> str:
         shared_strings = []
         if "xl/sharedStrings.xml" in archive.namelist():
             root = ElementTree.fromstring(archive.read("xl/sharedStrings.xml"))
-            for item in root.iter():
-                if item.tag.endswith("}t") and item.text:
-                    shared_strings.append(item.text)
+            for child in root:
+                if not child.tag.endswith("}si"):
+                    continue
+                texts = [node.text for node in child.iter() if node.tag.endswith("}t") and node.text]
+                shared_strings.append("".join(texts))
 
         for name in archive.namelist():
             if not name.startswith("xl/worksheets/") or not name.endswith(".xml"):
                 continue
             root = ElementTree.fromstring(archive.read(name))
-            for node in root.iter():
-                if not node.tag.endswith("}v") or node.text is None:
+            for cell in root.iter():
+                if not cell.tag.endswith("}c"):
                     continue
-                value = node.text
-                if value.isdigit():
+                cell_type = cell.attrib.get("t", "")
+                if cell_type == "inlineStr":
+                    texts = [node.text for node in cell.iter() if node.tag.endswith("}t") and node.text]
+                    if texts:
+                        parts.append("".join(texts))
+                    continue
+                value_node = next((node for node in cell if node.tag.endswith("}v") and node.text is not None), None)
+                if value_node is None or value_node.text is None:
+                    continue
+                value = value_node.text
+                # Only shared-string cells store an index. Plain numeric cells must stay numbers.
+                if cell_type == "s" and value.isdigit():
                     index = int(value)
                     if 0 <= index < len(shared_strings):
                         value = shared_strings[index]
@@ -180,7 +190,10 @@ def chunk_text(text: str) -> list[str]:
             chunks.append(chunk)
         if end == len(text):
             break
-        start = max(0, end - CHUNK_OVERLAP)
+        next_start = end - CHUNK_OVERLAP
+        if next_start <= start:
+            next_start = end
+        start = next_start
 
     return chunks
 
@@ -227,10 +240,14 @@ def display_path(path: Path) -> str:
         return path.as_posix()
 
 
-def iter_source_files() -> list[Path]:
-    SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+def iter_source_files(source_dirs: list[Path] | None = None) -> tuple[list[Path], bool]:
+    if source_dirs is None:
+        SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+        source_dirs = load_source_dirs()
+
     files = []
-    for source_dir in load_source_dirs():
+    hit_limit = False
+    for source_dir in source_dirs:
         for dirpath, dirnames, filenames in os.walk(source_dir):
             dir_path = Path(dirpath)
             try:
@@ -259,16 +276,23 @@ def iter_source_files() -> list[Path]:
                     continue
                 files.append(path)
                 if len(files) >= MAX_FILES:
-                    return sorted(set(files))
+                    hit_limit = True
+                    return sorted(set(files)), hit_limit
 
-    return sorted(set(files))
+    return sorted(set(files)), hit_limit
 
 
-def build_index() -> dict:
+def build_index(source_dirs: list[Path] | None = None, index_file: Path | None = None) -> dict:
+    if source_dirs is None:
+        SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+        source_dirs = load_source_dirs()
+
     documents = []
     errors = []
+    files, hit_limit = iter_source_files(source_dirs)
+    index_path = index_file or INDEX_FILE
 
-    for path in iter_source_files():
+    for path in files:
         relative_path = display_path(path)
         try:
             text = read_document(path)
@@ -289,12 +313,14 @@ def build_index() -> dict:
 
     index = {
         "version": 1,
-        "source_dirs": [display_path(path) for path in load_source_dirs()],
+        "source_dirs": [display_path(path) for path in source_dirs],
+        "file_count": len(files),
+        "hit_file_limit": hit_limit,
         "documents": documents,
         "errors": errors,
     }
-    INDEX_FILE.parent.mkdir(parents=True, exist_ok=True)
-    INDEX_FILE.write_text(json.dumps(index, indent=2, ensure_ascii=True), encoding="utf-8")
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(json.dumps(index, indent=2, ensure_ascii=True), encoding="utf-8")
     return index
 
 
@@ -305,14 +331,13 @@ def load_index() -> dict:
     return json.loads(INDEX_FILE.read_text(encoding="utf-8"))
 
 
-def search_index(query: str, limit: int = 5) -> list[dict]:
-    index = load_index()
+def search_documents(documents: list[dict], query: str, limit: int = 5) -> list[dict]:
     query_tokens = tokenize(query)
     if not query_tokens:
         return []
 
     results = []
-    for item in index.get("documents", []):
+    for item in documents:
         item_tokens = set(item.get("tokens", []))
         overlap = query_tokens & item_tokens
         if not overlap:
@@ -328,7 +353,12 @@ def search_index(query: str, limit: int = 5) -> list[dict]:
             }
         )
 
-    return sorted(results, key=lambda result: result["score"], reverse=True)[:limit]
+    return sorted(results, key=lambda result: (-result["score"], result["path"], result["chunk"]))[:limit]
+
+
+def search_index(query: str, limit: int = 5) -> list[dict]:
+    index = load_index()
+    return search_documents(index.get("documents", []), query, limit=limit)
 
 
 def find_files(query: str, limit: int = 20) -> list[Path]:
@@ -441,8 +471,10 @@ def main() -> int:
 
     if args.command == "index":
         index = build_index()
-        print(f"Indexed {len(index['documents'])} chunks from {len(iter_source_files())} files.")
+        print(f"Indexed {len(index['documents'])} chunks from {index['file_count']} files.")
         print(f"Limits: max files={MAX_FILES}, max depth={MAX_DEPTH}, max file size={MAX_FILE_BYTES // (1024 * 1024)} MB")
+        if index.get("hit_file_limit"):
+            print(f"Stopped at the file limit ({MAX_FILES}). Raise ATHENA_DOCS_MAX_FILES to index more.")
         print("Sources:")
         for source_dir in index["source_dirs"]:
             print(f"- {source_dir}")

@@ -19,18 +19,43 @@ Each line is one message with:
 
 This is the first step toward memory. Before ATHENA can remember useful things, it needs a reliable local record of conversations.
 
-## What This Is Not Yet
+## Session Names
 
-Saved logs are not the same as active memory. At this stage, ATHENA writes chats to disk, but it does not automatically read old chats before answering.
-
-That comes next.
-
-## Next Step
-
-Milestone 3 will add a small human-readable memory file, so you can teach ATHENA durable facts like:
+Name the open chat:
 
 ```text
-My main project is ATHENA.
-My Mac has 8 GB of memory.
-Prefer lightweight local tools first.
+/name project-review
 ```
+
+The transcript file is renamed, and later lines include the session name.
+
+## Search Past Chats
+
+List recent transcripts:
+
+```text
+/sessions
+```
+
+Search them:
+
+```text
+/history Kubernetes
+```
+
+Ask ATHENA to answer from the matches:
+
+```text
+/recall what did we decide about memory?
+```
+
+From the terminal:
+
+```bash
+python3 scripts/athena_history.py list
+python3 scripts/athena_history.py search Kubernetes
+```
+
+Ordinary questions still use the current conversation and `memory/profile.md`. Past chats are included when you use `/history` or `/recall`.
+
+Milestone 3 keeps durable facts in `memory/profile.md`, which is loaded at startup. Chat search stays a separate command so a long history does not fill the small context window.

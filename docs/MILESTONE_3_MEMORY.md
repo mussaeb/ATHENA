@@ -28,6 +28,8 @@ Quit:
 /exit
 ```
 
+If a memory looks like a password, API key, or SSH key, ATHENA warns you. `memory/profile.md` can be committed. `memory/private.md` is gitignored and is not loaded into the chat.
+
 ## What To Store
 
 Good memories:

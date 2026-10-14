@@ -63,7 +63,7 @@ Avoid larger models at this stage. A 7B model may run, but on 8 GB it can feel s
 python3 scripts/athena_chat.py
 ```
 
-ATHENA is offline at this stage. Ollama does not automatically connect the model to the internet.
+Ollama does not search the internet by itself. A normal question has no web results attached.
 
 If you ask:
 
@@ -71,13 +71,15 @@ If you ask:
 did you check the internet?
 ```
 
-the correct behavior is:
+the correct behavior is to say no, unless you used `/web`, `/askweb`, or `/webmode on` for that question.
+
+When you want a current source:
 
 ```text
-No. I am running locally and no internet search tool is connected yet.
+/askweb what is the current stable Python version?
 ```
 
-Small models can sometimes claim they searched the web even when they did not. This is why the ATHENA system prompt now explicitly tells the model not to claim internet access.
+The answer should cite the URLs ATHENA actually retrieved. Small models can still claim they searched when no result section was attached. The system prompt tells them not to.
 
 To use a different model:
 
