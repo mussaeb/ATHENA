@@ -49,7 +49,7 @@ Or open the local page, which adds a microphone button and a code view:
 python3 scripts/athena_ui.py
 ```
 
-That opens http://127.0.0.1:8765. Leave that window open while you use the page. **Code** can open project folders and files, ask ATHENA to work in the folder you are browsing, and run commands you type in the page terminal. **Apply** is still what writes a file.
+That opens http://127.0.0.1:8765. Leave that window open while you use the page. **Code** starts in this folder. **Open project** switches it to another folder on this computer. Open a file to edit it, then **Save**. Keep several files in tabs. **New file** creates one in the folder you are browsing. Ctrl+P opens a file by name, Ctrl+F finds in the file, and Ctrl+G jumps to a line. Ask ATHENA from the box above the editor; **Apply** writes a reviewed draft. Drag the dividers to resize the file list and the bottom panel, or hide either one.
 
 On Windows, use `python` instead of `python3`.
 

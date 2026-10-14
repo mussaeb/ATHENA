@@ -20,23 +20,25 @@ from pathlib import Path
 import athena_voice
 from athena_chat import MODEL, ChatSession, ask_ollama, command_name, propose_file_budget
 from athena_code import (
+    BINARY_SUFFIXES,
     SKIPPED_DIRS,
     build_updated_text,
     git_diff,
     git_log,
     git_status,
     is_secret,
-    is_writable,
     list_project_files,
+    load_latest_proposal,
     normalize_newlines,
     parse_new_file,
     parse_replacement,
     proposal_diff,
     read_project_file,
     resolve_inside,
+    run_tests,
     save_proposal,
 )
-from athena_common import PROJECT_ROOT, clip, load_dotenv
+from athena_common import PROJECT_ROOT, append_safety_log, clip, load_dotenv
 
 
 load_dotenv(PROJECT_ROOT)
@@ -45,6 +47,7 @@ PAGE_PATH = Path(__file__).with_name("athena_ui.html")
 HOST = "127.0.0.1"
 DEFAULT_PORT = int(os.environ.get("ATHENA_UI_PORT", "8765"))
 MAX_BODY = 64_000
+EDITOR_LIMIT = 400_000
 TOKEN_PLACEHOLDER = "__ATHENA_TOKEN__"
 SPOKEN_COMMANDS = {"/askdocs", "/askweb", "/recall"}
 SPEECH_LOCK = threading.Lock()
@@ -148,7 +151,7 @@ def proposal_from_model_text(
     relative = target.relative_to(root.resolve())
     if not _inside_scope(scope, relative.as_posix()):
         raise ValueError(f"Refusing a change outside the selected folder: {relative.as_posix()}")
-    if is_secret(relative) or not is_writable(relative):
+    if not page_can_write(relative):
         raise ValueError(f"Refusing to draft a change for {relative.as_posix()}.")
     exists = target.is_file()
     original = ""
@@ -165,6 +168,7 @@ def proposal_from_model_text(
         raise ValueError("The draft made no changes. No file was written.")
     proposal = {
         "path": relative.as_posix(),
+        "root": str(root.resolve()),
         "instruction": "project request",
         "original": original,
         "updated": updated,
@@ -174,7 +178,148 @@ def proposal_from_model_text(
     return proposal
 
 
-def ask_project(root: Path, instruction: str, folder: str = "", focus: str = "") -> dict[str, str]:
+def page_can_write(relative: Path) -> bool:
+    return bool(relative.parts) and not is_secret(relative) and not _hidden_or_skipped(relative)
+
+
+def editor_file(root: Path, user_path: str) -> dict[str, str]:
+    target = resolve_inside(root, user_path)
+    relative = target.relative_to(root.resolve())
+    if is_secret(relative) or _hidden_or_skipped(relative):
+        raise ValueError(f"Refusing to open {relative.as_posix()}.")
+    if not target.is_file():
+        raise ValueError(f"File not found: {relative.as_posix()}")
+    if target.suffix.lower() in BINARY_SUFFIXES:
+        raise ValueError("This file cannot be edited as text.")
+    if target.stat().st_size > EDITOR_LIMIT:
+        raise ValueError("That file is too large to edit here.")
+    return {"path": relative.as_posix(), "text": target.read_text(encoding="utf-8", errors="replace")}
+
+
+def save_editor_file(root: Path, user_path: str, text: str, *, create_only: bool = False) -> str:
+    if len(text) > EDITOR_LIMIT:
+        raise ValueError("That file is too large to save here.")
+    target = resolve_inside(root, user_path)
+    relative = target.relative_to(root.resolve())
+    if not page_can_write(relative):
+        raise ValueError(f"Refusing to write {relative.as_posix()}.")
+    if create_only and target.exists():
+        raise ValueError("That file already exists.")
+    if target.exists() and not target.is_file():
+        raise ValueError("Choose a file to save.")
+    if target.suffix.lower() in BINARY_SUFFIXES:
+        raise ValueError("This file cannot be edited as text.")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8"))
+    append_safety_log("save", f"{root}\n{relative.as_posix()}", approved=True)
+    return f"Saved {relative.as_posix()}."
+
+
+def list_places(user_path: str) -> dict[str, object]:
+    raw = user_path.strip()
+    if not raw:
+        entries = [{"name": "Home", "path": str(Path.home())}]
+        if sys.platform == "win32":
+            entries.extend(
+                {"name": f"{letter}:\\", "path": f"{letter}:\\"}
+                for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                if Path(f"{letter}:\\").exists()
+            )
+        else:
+            entries.append({"name": "/", "path": "/"})
+        return {"path": "", "parent": "", "entries": entries}
+
+    try:
+        resolved = Path(raw).expanduser().resolve()
+    except OSError as exc:
+        raise ValueError("That folder cannot be opened.") from exc
+    if not resolved.is_dir():
+        raise ValueError("Choose a folder.")
+    try:
+        children = list(resolved.iterdir())
+    except OSError as exc:
+        raise ValueError("That folder cannot be listed.") from exc
+    entries = []
+    for child in children:
+        if not child.is_dir() or child.name in SKIPPED_DIRS or child.name.startswith("."):
+            continue
+        try:
+            child_path = str(child.resolve())
+        except OSError:
+            continue
+        entries.append({"name": child.name, "path": child_path})
+    entries.sort(key=lambda item: item["name"].lower())
+    parent = "" if resolved.parent == resolved else str(resolved.parent)
+    return {"path": str(resolved), "parent": parent, "entries": entries[:200]}
+
+
+def open_project_folder(user_path: str) -> Path:
+    if not user_path.strip():
+        raise ValueError("Choose a project folder.")
+    try:
+        resolved = Path(user_path).expanduser().resolve()
+    except OSError as exc:
+        raise ValueError("That folder cannot be opened.") from exc
+    if not resolved.is_dir():
+        raise ValueError("That path is not a folder.")
+    if resolved.name == ".ssh" or ".ssh" in resolved.parts or resolved.name in SKIPPED_DIRS:
+        raise ValueError("That folder cannot be opened as a project.")
+    return resolved
+
+
+class Workspace:
+    """The folder the Code view is working in. Talk stays with ATHENA."""
+
+    def __init__(self, root: Path | None = None) -> None:
+        self.proposal_dir = PROJECT_ROOT / "logs" / "ui-proposals"
+        self.root = PROJECT_ROOT.resolve()
+        self.terminal = ProjectTerminal(self.root)
+        if root is not None:
+            self.open(root)
+
+    def open(self, root: Path) -> None:
+        self.root = open_project_folder(str(root))
+        self.terminal = ProjectTerminal(self.root)
+
+    def info(self) -> dict[str, str]:
+        return {"path": str(self.root), "name": self.root.name}
+
+
+def apply_workspace_proposal(workspace: Workspace) -> str:
+    proposal = load_latest_proposal(workspace.proposal_dir)
+    saved = str(proposal.get("root", "")).strip()
+    if not saved or Path(saved).resolve() != workspace.root.resolve():
+        raise ValueError("That draft is for a different project. Ask again in this project.")
+    target = resolve_inside(workspace.root, str(proposal.get("path", "")))
+    relative = target.relative_to(workspace.root.resolve())
+    if not page_can_write(relative):
+        raise ValueError(f"Refusing to write {relative.as_posix()}.")
+    original = normalize_newlines(str(proposal.get("original", "")))
+    updated = normalize_newlines(str(proposal.get("updated", "")))
+    if target.exists():
+        current = normalize_newlines(target.read_text(encoding="utf-8", errors="replace"))
+        if current != original:
+            raise ValueError("The file changed after the draft was created. Ask again.")
+    elif original:
+        raise ValueError("The original file is missing, so nothing was written.")
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(updated.encode("utf-8"))
+    append_safety_log(
+        "apply",
+        f"{workspace.root}\n{relative.as_posix()}\n{proposal.get('diff', '')}",
+        approved=True,
+    )
+    return f"Applied the draft to {relative.as_posix()}."
+
+
+def ask_project(
+    root: Path,
+    instruction: str,
+    folder: str = "",
+    focus: str = "",
+    proposal_dir: Path | None = None,
+) -> dict[str, str]:
     instruction = instruction.strip()
     if not instruction:
         raise ValueError("Tell ATHENA what to do in the project.")
@@ -188,7 +333,7 @@ def ask_project(root: Path, instruction: str, folder: str = "", focus: str = "")
     )
     text = raw.strip()
     try:
-        proposal = proposal_from_model_text(root, raw, folder)
+        proposal = proposal_from_model_text(root, raw, folder, proposal_dir)
     except ValueError as exc:
         return {"text": text + "\n\n" + str(exc), "diff": "", "path": ""}
     if proposal is None:
@@ -335,8 +480,8 @@ def status_payload(session: ChatSession) -> dict[str, object]:
     }
 
 
-def file_list_payload(query: str) -> dict[str, object]:
-    text = list_project_files(PROJECT_ROOT, query, limit=80)
+def file_list_payload(root: Path, query: str) -> dict[str, object]:
+    text = list_project_files(root, query, limit=80)
     files = [line[2:].strip() for line in text.splitlines() if line.startswith("- ")]
     return {"text": text, "files": files}
 
@@ -345,10 +490,10 @@ def build_handler(
     session: ChatSession,
     token: str = "test-token",
     lock: threading.Lock | None = None,
-    terminal: ProjectTerminal | None = None,
+    workspace: Workspace | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     session_lock = lock or threading.Lock()
-    project_terminal = terminal or ProjectTerminal(PROJECT_ROOT)
+    project = workspace or Workspace()
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -367,34 +512,55 @@ def build_handler(
                 self._json(200, payload)
                 return
             query = urllib.parse.parse_qs(parsed.query)
-            if parsed.path == "/api/code/tree":
+            if parsed.path == "/api/workspace":
+                with session_lock:
+                    payload = project.info()
+                self._json(200, payload)
+                return
+            if parsed.path == "/api/code/places":
                 try:
-                    payload = list_directory(PROJECT_ROOT, query.get("path", [""])[0])
+                    payload = list_places(query.get("path", [""])[0])
+                except ValueError as exc:
+                    self._json(400, {"error": str(exc)})
+                    return
+                self._json(200, payload)
+                return
+            if parsed.path == "/api/code/tree":
+                with session_lock:
+                    root = project.root
+                try:
+                    payload = list_directory(root, query.get("path", [""])[0])
                 except ValueError as exc:
                     self._json(400, {"error": str(exc)})
                     return
                 self._json(200, payload)
                 return
             if parsed.path == "/api/code/files":
-                self._json(200, file_list_payload(query.get("q", [""])[0]))
+                with session_lock:
+                    root = project.root
+                self._json(200, file_list_payload(root, query.get("q", [""])[0]))
                 return
             if parsed.path == "/api/code/file":
                 path = query.get("path", [""])[0]
+                with session_lock:
+                    root = project.root
                 try:
-                    text = read_project_file(PROJECT_ROOT, path)
+                    payload = editor_file(root, path)
                 except ValueError as exc:
                     self._json(400, {"error": str(exc)})
                     return
-                self._json(200, {"path": path, "text": text})
+                self._json(200, payload)
                 return
             if parsed.path == "/api/code/git":
                 view = query.get("view", ["status"])[0]
+                with session_lock:
+                    root = project.root
                 if view == "diff":
-                    text = git_diff()
+                    text = git_diff(root)
                 elif view == "log":
-                    text = git_log()
+                    text = git_log(root)
                 else:
-                    text = git_status()
+                    text = git_status(root)
                 self._json(200, {"text": text})
                 return
             self._json(404, {"error": "Not found"})
@@ -402,11 +568,22 @@ def build_handler(
         def do_POST(self) -> None:
             parsed = urllib.parse.urlparse(self.path)
             try:
-                data = self._read_json()
+                limit = 500_000 if parsed.path == "/api/code/file" else MAX_BODY
+                data = self._read_json(limit)
             except ValueError as exc:
                 self._json(400, {"error": str(exc)})
                 return
             if not self._allowed(token):
+                return
+            if parsed.path == "/api/workspace":
+                with session_lock:
+                    try:
+                        project.open(str(data.get("path", "")))
+                    except ValueError as exc:
+                        self._json(400, {"error": str(exc)})
+                        return
+                    payload = project.info()
+                self._json(200, payload)
                 return
             if parsed.path == "/api/code/ask":
                 instruction = str(data.get("instruction", ""))
@@ -414,17 +591,56 @@ def build_handler(
                 focus = str(data.get("focus", ""))
                 with session_lock:
                     try:
-                        payload = ask_project(PROJECT_ROOT, instruction, folder, focus)
+                        payload = ask_project(
+                            project.root,
+                            instruction,
+                            folder,
+                            focus,
+                            project.proposal_dir,
+                        )
                     except (OSError, ValueError, RuntimeError) as exc:
                         self._json(400, {"error": str(exc)})
                         return
                 self._json(200, payload)
                 return
+            if parsed.path == "/api/code/file":
+                path = str(data.get("path", "")).strip()
+                if not path:
+                    self._json(400, {"error": "Open a file before saving."})
+                    return
+                with session_lock:
+                    try:
+                        message = save_editor_file(
+                            project.root,
+                            path,
+                            str(data.get("text", "")),
+                            create_only=bool(data.get("create")),
+                        )
+                    except (OSError, ValueError) as exc:
+                        self._json(400, {"error": str(exc)})
+                        return
+                self._json(200, {"text": message, "path": path})
+                return
+            if parsed.path == "/api/code/apply":
+                with session_lock:
+                    try:
+                        message = apply_workspace_proposal(project)
+                    except (OSError, ValueError) as exc:
+                        self._json(400, {"error": str(exc)})
+                        return
+                self._json(200, {"text": message})
+                return
+            if parsed.path == "/api/code/test":
+                with session_lock:
+                    root = project.root
+                code, output = run_tests(root)
+                self._json(200, {"text": clip(output, 12000), "code": code})
+                return
             if parsed.path == "/api/terminal":
                 command = str(data.get("command", ""))
                 with session_lock:
                     try:
-                        payload = project_terminal.run(command)
+                        payload = project.terminal.run(command)
                     except ValueError as exc:
                         self._json(400, {"error": str(exc)})
                         return
@@ -463,12 +679,12 @@ def build_handler(
             self._json(403, {"error": "Open this action from the local ATHENA page."})
             return False
 
-        def _read_json(self) -> dict:
+        def _read_json(self, limit: int = MAX_BODY) -> dict:
             try:
                 length = int(self.headers.get("Content-Length", "0"))
             except ValueError as exc:
                 raise ValueError("Invalid request size.") from exc
-            if length < 0 or length > MAX_BODY:
+            if length < 0 or length > limit:
                 self.close_connection = True
                 if 0 < length <= MAX_BODY + 8192:
                     self.rfile.read(length)

@@ -85,3 +85,4 @@ Reason:
 - Chat, document search, web search, and reviewed edits can share one page without a frontend toolchain
 - Chrome's recognizer is not fully local, so the page says that plainly
 - The page terminal runs only commands the user types, and file writes still wait for Apply
+- Code can open another folder on this computer. Edits stay inside that folder

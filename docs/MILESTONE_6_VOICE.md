@@ -49,8 +49,11 @@ Open http://127.0.0.1:8765 if it does not open on its own.
 - **Listen** uses the browser microphone and sends that sentence as the question
 - **Speak replies** reads the answer with the operating system voice
 - **Documents** and **Web** attach those sources to ordinary questions
-- **Code** browses project folders and files, asks ATHENA to work in the open folder or the whole project, and writes a file only after **Apply**
-- The terminal at the bottom runs commands you type, starting in the project folder
+- **Code** starts in the ATHENA folder. **Open project** switches to another folder on this computer
+- Open a file and edit it in the page. Several files stay open as tabs. **Save** writes your edit. **Apply** writes a draft from ATHENA
+- **New file** creates a file in the open folder. Ctrl+P opens a file by name, Ctrl+F finds in the file, and Ctrl+G jumps to a line
+- Drag the dividers to resize the file list or the bottom panel. **Files** and **Panel** hide them
+- The terminal runs commands you type, starting in the open project
 
 In Chrome, the microphone recognizer sends audio to Google. The answer is still produced by the local model. Safari can use Apple's recognizer instead.
 

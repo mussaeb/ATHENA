@@ -54,7 +54,7 @@
     }
     .brand span { color: var(--muted); font-size: 0.78rem; letter-spacing: 0.14em; margin-left: 0.4rem; }
     nav { display: flex; gap: 0.4rem; }
-    nav button, .toolbar button, .composer button, .code-actions button, .file-tools button {
+    nav button, .toolbar button, .composer button, .code-actions button, .file-tools button, #place-nav button {
       border: 1px solid var(--line);
       background: var(--card);
       border-radius: 999px;
@@ -138,31 +138,45 @@
     #code {
       min-width: 0;
       display: none;
-      grid-template-columns: 18rem 1fr;
-      gap: 1rem;
-      padding: 1rem;
       height: 100%;
+      padding: 0.4rem;
+      gap: 0;
+      background: #ebe4d8;
     }
-    #code.active {
-      display: grid;
-      grid-template-rows: minmax(0, 1fr) 11.5rem;
-    }
+    #code.active { display: flex; flex-direction: column; }
+    #ide { flex: 1; min-height: 0; display: flex; }
+    .split { flex: 0 0 6px; background: transparent; touch-action: none; }
+    .split-x { cursor: col-resize; }
+    .split-y { cursor: row-resize; }
+    .split:hover, .split:focus-visible { background: rgba(12, 92, 86, 0.35); }
+    #code.sidebar-hidden .files, #code.sidebar-hidden #side-split { display: none; }
+    #code.dock-hidden #dock, #code.dock-hidden #dock-split { display: none; }
     .files, .workspace {
       background: var(--card);
       border: 1px solid var(--line);
-      border-radius: 1.1rem;
+      border-radius: 0.55rem;
       min-width: 0;
       min-height: 0;
-      box-shadow: var(--shadow);
     }
-    .files { grid-row: 1; display: flex; flex-direction: column; min-height: 0; padding: 0.8rem; }
-    .workspace { grid-row: 1; }
+    .files { width: 17rem; display: flex; flex-direction: column; padding: 0.55rem; }
+    .project-bar { display: flex; align-items: center; gap: 0.45rem; margin-bottom: 0.45rem; }
+    .project-bar div { min-width: 0; flex: 1; }
+    #project-name { display: block; }
+    #project-path { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #browser { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+    #browser[hidden] { display: none; }
+    #opener { display: flex; flex-direction: column; gap: 0.4rem; min-height: 0; flex: 1; }
+    #opener[hidden] { display: none; }
+    #open-path { width: 100%; border: 1px solid var(--line); border-radius: 999px; padding: 0.4rem 0.7rem; }
+    #place-list { list-style: none; margin: 0; padding: 0; overflow: auto; }
+    .workspace { flex: 1; }
     #crumbs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.45rem; }
     #crumbs button { border: 0; background: transparent; color: var(--teal); padding: 0; }
     .file-tools { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .file-tools input { flex: 1; border: 1px solid var(--line); border-radius: 999px; padding: 0.4rem 0.7rem; }
     #file-list { list-style: none; margin: 0.8rem 0 0; padding: 0; overflow: auto; }
-    #file-list button {
+    #place-nav { display: flex; gap: 0.4rem; }
+    #file-list button, #place-list button {
       width: 100%;
       text-align: left;
       border: 0;
@@ -173,36 +187,116 @@
       white-space: normal;
       overflow-wrap: anywhere;
     }
-    #file-list button:hover, #file-list button[aria-current="true"] { background: var(--user); }
-    .workspace { display: flex; flex-direction: column; min-height: 0; padding: 0.9rem; gap: 0.7rem; }
-    .code-actions, .draft { display: flex; flex-wrap: wrap; gap: 0.45rem; }
-    .draft input { flex: 1; min-width: 12rem; border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.45rem 0.7rem; }
-    #apply, #ask-project, #term-run { background: var(--teal); color: var(--teal-ink); border-color: var(--teal); }
-    #project-ask {
-      width: 100%;
-      min-height: 3.2rem;
-      border: 1px solid var(--line);
-      border-radius: 0.8rem;
-      padding: 0.55rem 0.7rem;
-      background: var(--card);
+    #file-list button:hover, #file-list button[aria-current="true"], #place-list button:hover { background: var(--user); }
+    .workspace { position: relative; display: flex; flex-direction: column; min-height: 0; padding: 0; gap: 0; overflow: hidden; }
+    .editor-bar, .ask-row, .dock-bar, .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      min-width: 0;
     }
-    .terminal {
-      grid-column: 1 / -1;
-      grid-row: 2;
+    .editor-bar, .ask-row { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line); }
+    #tabs { display: flex; gap: 0.15rem; overflow: auto; background: #ebe4d8; min-height: 0; }
+    #tabs:empty { display: none; }
+    .tab { display: flex; align-items: stretch; border-radius: 0.4rem 0.4rem 0 0; }
+    .tab button { border: 0; background: transparent; padding: 0.28rem 0.4rem; color: var(--ink); }
+    .tab-close { padding-right: 0.4rem; }
+    .tab[aria-current="true"] { background: #1d1914; }
+    .tab[aria-current="true"] button { color: #f6f1e8; }
+    #find-bar, #quick-open { display: flex; gap: 0.35rem; align-items: center; }
+    #find-bar[hidden], #quick-open[hidden] { display: none; }
+    #find-bar { padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--line); background: var(--card); }
+    #find-bar input, #quick-query { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 0.4rem; padding: 0.25rem 0.5rem; }
+    #find-count { color: var(--muted); font-size: 0.78rem; }
+    #quick-open {
+      position: absolute;
+      z-index: 4;
+      top: 0.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(34rem, calc(100% - 1rem));
+      flex-direction: column;
+      align-items: stretch;
+      padding: 0.45rem;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 0.6rem;
+      box-shadow: var(--shadow);
+    }
+    #quick-list { list-style: none; margin: 0.35rem 0 0; padding: 0; max-height: 16rem; overflow: auto; }
+    #quick-list button { width: 100%; text-align: left; border: 0; background: transparent; border-radius: 0.35rem; padding: 0.28rem 0.45rem; }
+    #quick-list button[aria-current="true"], #quick-list button:hover { background: var(--user); }
+    #editor-path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 0.86rem/1.2 ui-monospace, Consolas, monospace; }
+    #editor-state { color: var(--danger); font-size: 0.78rem; }
+    #save-file, .ask-row button, .dock-bar button, .status-bar button, #find-bar button {
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 0.45rem;
+      padding: 0.22rem 0.6rem;
+    }
+    #save-file:disabled { opacity: 0.45; }
+    #save-file:not(:disabled), #ask-project, #term-run, #apply { background: var(--teal); color: var(--teal-ink); border-color: var(--teal); }
+    .ask-row input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 0.45rem; padding: 0.28rem 0.55rem; background: var(--card); }
+    .editor-wrap { flex: 1; min-height: 0; display: flex; background: #1d1914; }
+    #gutter {
+      flex: 0 0 3rem;
+      margin: 0;
+      overflow: hidden;
+      text-align: right;
+      padding: 0.55rem 0.45rem 0.55rem 0.2rem;
+      color: #8d8378;
+      background: #171410;
+      border-radius: 0;
+      white-space: pre;
+      user-select: none;
+    }
+    #editor::placeholder { color: #8d8378; }
+    #editor {
+      flex: 1;
+      width: auto;
+      height: 100%;
+      min-height: 0;
+      max-height: none;
+      resize: none;
+      border: 0;
+      border-radius: 0;
+      padding: 0.55rem 0.7rem;
+      background: #1d1914;
+      color: #f6f1e8;
+      caret-color: #f6f1e8;
+      font: 0.92rem/1.45 ui-monospace, "Cascadia Code", Consolas, monospace;
+      white-space: pre;
+      overflow: auto;
+    }
+    #dock {
+      height: 12.5rem;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      gap: 0.45rem;
-      min-width: 0;
-      min-height: 0;
-      padding: 0.7rem 0.8rem;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 1.1rem;
+      background: #1d1914;
+      color: #f6f1e8;
+      border-radius: 0.55rem;
+      overflow: hidden;
     }
-    .term-bar { display: flex; gap: 0.45rem; align-items: center; }
-    #term-cwd { min-width: 4rem; color: var(--teal); font: 0.85rem/1.2 ui-monospace, Consolas, monospace; }
-    #term-command { flex: 1; border: 1px solid var(--line); border-radius: 999px; padding: 0.4rem 0.75rem; background: #1d1914; color: #f6f1e8; }
-    #term-output { min-height: 0; }
+    .dock-bar { padding: 0.25rem 0.4rem; background: #242019; }
+    .dock-bar button { color: var(--ink); }
+    .dock-bar button[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); border-color: var(--teal); }
+    #hide-dock { margin-left: auto; }
+    .terminal { flex: 1; display: flex; flex-direction: column; gap: 0.35rem; min-height: 0; padding: 0.35rem 0.5rem 0.5rem; }
+    #terminal[hidden], #code-output[hidden] { display: none !important; }
+    .term-bar { display: flex; gap: 0.4rem; align-items: center; }
+    #term-cwd { min-width: 2rem; color: #9dcec8; font: 0.82rem/1.2 ui-monospace, Consolas, monospace; }
+    #term-command { flex: 1; border: 1px solid #3a342c; border-radius: 0.45rem; padding: 0.32rem 0.6rem; background: #14110e; color: #f6f1e8; }
+    #term-output, #code-output { min-height: 0; border-radius: 0; background: transparent; }
+    .status-bar {
+      flex: 0 0 auto;
+      padding: 0.15rem 0.4rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    .status-bar button[aria-pressed="true"] { background: var(--user); }
+    #status-pos { margin-left: auto; font-family: ui-monospace, Consolas, monospace; }
+    #keys { color: var(--muted); }
     pre {
       margin: 0;
       flex: 1;
@@ -220,13 +314,13 @@
       article.you, article.athena { margin-left: 0; margin-right: 0; }
       .composer { grid-template-columns: 1fr 1fr; }
       textarea { grid-column: 1 / -1; }
-      #code.active { grid-template-columns: 1fr; grid-template-rows: 16rem minmax(18rem, auto) 12rem; overflow: auto; }
-      .files, .workspace, .terminal { grid-column: 1; grid-row: auto; }
-      .files { max-height: 16rem; }
+      #ide { flex-direction: column; overflow: auto; }
+      .files { width: auto; max-height: 14rem; }
+      #side-split { display: none; }
+      #dock { height: 11rem; }
+      .ask-row { flex-wrap: wrap; }
       .file-tools input { flex: 1 1 100%; }
-      .draft input { min-width: 0; flex: 1 1 100%; }
-      .code-actions { display: grid; grid-template-columns: 1fr 1fr; }
-      #ask-project, #apply { grid-column: 1 / -1; }
+      #keys, #quick-open { display: none; }
     }
   </style>
 </head>
@@ -259,40 +353,96 @@
       <p class="hint">Listening uses the browser’s speech recognizer. In Chrome, that recognizer sends audio to Google. The answer is still produced by the local model. Spoken replies use the voice already on this computer.</p>
     </section>
     <section id="code" class="view">
+      <div id="ide">
       <aside class="files">
+        <div class="project-bar">
+          <div>
+            <strong id="project-name">Project</strong>
+            <span id="project-path" class="hint"></span>
+          </div>
+          <button type="button" id="open-project">Open project</button>
+        </div>
+        <div id="opener" hidden>
+          <form id="open-form">
+            <input id="open-path" type="text" placeholder="Paste a folder path, or choose one below" aria-label="Project folder">
+          </form>
+          <div class="file-tools">
+            <button type="button" id="use-folder">Use this folder</button>
+            <button type="button" id="close-opener">Cancel</button>
+          </div>
+          <div id="place-nav"></div>
+          <ul id="place-list"></ul>
+        </div>
+        <div id="browser">
         <div id="crumbs"></div>
         <div class="file-tools">
           <input id="file-query" type="search" placeholder="Find in the project" aria-label="Find in the project">
           <button type="button" id="list-files">Find</button>
           <button type="button" id="show-folder">Folder</button>
+          <button type="button" id="new-file">New file</button>
         </div>
         <ul id="file-list"></ul>
+        </div>
       </aside>
+      <div id="side-split" class="split split-x" role="separator" aria-orientation="vertical" aria-label="Resize files" tabindex="0"></div>
       <div class="workspace">
-        <p id="scope-label" class="hint">Asking about the whole project.</p>
-        <textarea id="project-ask" rows="2" placeholder="Explain or change this folder. From the project root, this covers the whole project."></textarea>
-        <div class="code-actions">
+        <div id="tabs"></div>
+        <div class="editor-bar">
+          <span id="editor-path">No file open</span>
+          <span id="editor-state"></span>
+          <button type="button" id="find-open">Find</button>
+          <button type="button" id="goto-line">Line</button>
+          <button type="button" id="save-file" disabled>Save</button>
+        </div>
+        <form id="find-bar" hidden>
+          <input id="find-query" type="text" placeholder="Find in file" aria-label="Find in file" autocomplete="off">
+          <span id="find-count"></span>
+          <button type="button" id="find-prev">Prev</button>
+          <button type="submit" id="find-next">Next</button>
+          <button type="button" id="find-close">Close</button>
+        </form>
+        <div id="quick-open" hidden>
+          <input id="quick-query" type="text" placeholder="Open a file by name" aria-label="Open a file by name" autocomplete="off">
+          <ul id="quick-list"></ul>
+        </div>
+        <form id="ask-form" class="ask-row">
+          <input id="project-ask" type="text" placeholder="Ask ATHENA about the open file or this project" aria-label="Ask ATHENA">
           <button type="button" id="ask-project">Ask</button>
-          <button type="button" id="git">Git status</button>
+          <button type="button" id="git">Git</button>
           <button type="button" id="diff">Diff</button>
-          <button type="button" id="tests">Run tests</button>
+          <button type="button" id="tests">Test</button>
           <button type="button" id="apply">Apply</button>
+        </form>
+        <div class="editor-wrap">
+          <pre id="gutter" aria-hidden="true">1</pre>
+          <textarea id="editor" spellcheck="false" wrap="off" aria-label="File editor" placeholder="Open a file to edit it. Ctrl+S or Cmd+S saves."></textarea>
         </div>
-        <div class="draft">
-          <input id="edit-path" type="text" placeholder="One file, such as vision/README.md" aria-label="File to change">
-          <input id="edit-instruction" type="text" placeholder="Or draft one exact file change" aria-label="Change to draft">
-          <button type="button" id="propose">Draft this file</button>
-        </div>
-        <pre id="code-output">Open a folder or file. Ask can cover the folder you are in. Apply writes a file only after you review the diff.</pre>
       </div>
-      <form id="terminal" class="terminal">
-        <pre id="term-output">Commands run on this computer, starting in the project folder. ATHENA does not type them for you.</pre>
-        <div class="term-bar">
-          <span id="term-cwd">.</span>
-          <input id="term-command" type="text" placeholder="python3 -m unittest discover -s tests" aria-label="Terminal command" autocomplete="off" spellcheck="false">
-          <button type="submit" id="term-run">Run</button>
+      </div>
+      <div id="dock-split" class="split split-y" role="separator" aria-orientation="horizontal" aria-label="Resize panel" tabindex="0"></div>
+      <section id="dock">
+        <div class="dock-bar">
+          <button type="button" id="tab-terminal" aria-pressed="true">Terminal</button>
+          <button type="button" id="tab-output" aria-pressed="false">Output</button>
+          <button type="button" id="hide-dock">Hide</button>
         </div>
-      </form>
+        <form id="terminal" class="terminal">
+          <pre id="term-output">Commands run in the open project. ATHENA does not type them for you.</pre>
+          <div class="term-bar">
+            <span id="term-cwd">.</span>
+            <input id="term-command" type="text" placeholder="python3 -m unittest discover -s tests" aria-label="Terminal command" autocomplete="off" spellcheck="false">
+            <button type="submit" id="term-run">Run</button>
+          </div>
+        </form>
+        <pre id="code-output" hidden>Git, tests, and ATHENA replies show here. Apply writes a reviewed draft. Save writes the editor.</pre>
+      </section>
+      <div class="status-bar">
+        <button type="button" id="toggle-sidebar" aria-pressed="true">Files</button>
+        <button type="button" id="toggle-dock" aria-pressed="true">Panel</button>
+        <span id="scope-label">Whole project</span>
+        <span id="keys">Ctrl+P open · Ctrl+F find · Ctrl+G line</span>
+        <span id="status-pos">Ln 1, Col 1</span>
+      </div>
     </section>
   </main>
   <script>window.ATHENA_PAGE_TOKEN = "__ATHENA_TOKEN__";</script>
@@ -304,12 +454,17 @@
     const model = document.querySelector("#model");
     const codeOutput = document.querySelector("#code-output");
     const fileList = document.querySelector("#file-list");
-    const editPath = document.querySelector("#edit-path");
+    const editor = document.querySelector("#editor");
     const scopeLabel = document.querySelector("#scope-label");
     const termOutput = document.querySelector("#term-output");
     const termCwd = document.querySelector("#term-cwd");
+    const codeView = document.querySelector("#code");
     let browsePath = "";
     let focusFile = "";
+    let placePath = "";
+    let savedText = "";
+    const openTabs = new Map();
+    let quickIndex = 0;
     let recognition = null;
     let busy = false;
 
@@ -323,8 +478,12 @@
       document.querySelector("#talk").style.display = name === "talk" ? "flex" : "none";
       document.querySelector("#show-talk").setAttribute("aria-pressed", name === "talk");
       document.querySelector("#show-code").setAttribute("aria-pressed", name === "code");
-      if (name === "code" && !fileList.children.length) {
-        openFolder(browsePath).catch((error) => { codeOutput.textContent = error.message; });
+      if (name === "code") {
+        loadWorkspace()
+          .then(() => {
+            if (!fileList.children.length) return openFolder(browsePath);
+          })
+          .catch((error) => { codeOutput.textContent = error.message; });
       }
     }
 
@@ -464,13 +623,226 @@
       heardSpeech.start();
     }
 
+    function showDockTab(name) {
+      const terminal = document.querySelector("#terminal");
+      terminal.hidden = name !== "terminal";
+      codeOutput.hidden = name !== "output";
+      document.querySelector("#tab-terminal").setAttribute("aria-pressed", name === "terminal");
+      document.querySelector("#tab-output").setAttribute("aria-pressed", name === "output");
+      setDock(true);
+    }
+
+    function setSidebar(open) {
+      codeView.classList.toggle("sidebar-hidden", !open);
+      document.querySelector("#side-split").hidden = !open;
+      document.querySelector("#toggle-sidebar").setAttribute("aria-pressed", String(open));
+    }
+
+    function setDock(open) {
+      codeView.classList.toggle("dock-hidden", !open);
+      document.querySelector("#dock-split").hidden = !open;
+      document.querySelector("#toggle-dock").setAttribute("aria-pressed", String(open));
+    }
+
+    function editorDirty() {
+      return Boolean(focusFile) && editor.value !== savedText;
+    }
+
+    function paintGutter() {
+      const count = Math.max(editor.value.split("\n").length, 1);
+      let numbers = "";
+      for (let line = 1; line <= count; line += 1) numbers += line + "\n";
+      document.querySelector("#gutter").textContent = numbers;
+    }
+
+    function paintCursor() {
+      const before = editor.value.slice(0, editor.selectionStart);
+      const line = before.split("\n").length;
+      const column = before.length - before.lastIndexOf("\n");
+      document.querySelector("#status-pos").textContent = "Ln " + line + ", Col " + column;
+    }
+
+    function syncTab() {
+      if (!focusFile) return;
+      openTabs.set(focusFile, { text: editor.value, saved: savedText });
+    }
+
+    function renderTabs() {
+      const bar = document.querySelector("#tabs");
+      bar.textContent = "";
+      openTabs.forEach((state, path) => {
+        const tab = document.createElement("div");
+        tab.className = "tab";
+        if (path === focusFile) tab.setAttribute("aria-current", "true");
+        const name = document.createElement("button");
+        name.type = "button";
+        const leaf = path.split("/").pop();
+        name.textContent = (state.text !== state.saved ? "● " : "") + leaf;
+        name.title = path;
+        name.addEventListener("click", () => switchTab(path));
+        const close = document.createElement("button");
+        close.type = "button";
+        close.className = "tab-close";
+        close.setAttribute("aria-label", "Close " + path);
+        close.textContent = "×";
+        close.addEventListener("click", (event) => {
+          event.stopPropagation();
+          closeTab(path);
+        });
+        tab.appendChild(name);
+        tab.appendChild(close);
+        bar.appendChild(tab);
+      });
+    }
+
+    function switchTab(path) {
+      if (!openTabs.has(path) || path === focusFile) return;
+      syncTab();
+      const state = openTabs.get(path);
+      focusFile = path;
+      editor.value = state.text;
+      savedText = state.saved;
+      updateScope();
+      paintEditor();
+      editor.focus();
+    }
+
+    function closeTab(path) {
+      const state = openTabs.get(path);
+      if (!state) return;
+      if (state.text !== state.saved && !window.confirm("Discard unsaved changes in " + path + "?")) return;
+      const paths = Array.from(openTabs.keys());
+      const index = paths.indexOf(path);
+      openTabs.delete(path);
+      if (focusFile === path) {
+        focusFile = "";
+        editor.value = "";
+        savedText = "";
+        const next = paths[index + 1] || paths[index - 1] || "";
+        if (next && openTabs.has(next)) {
+          switchTab(next);
+          return;
+        }
+      }
+      updateScope();
+      paintEditor();
+    }
+
+    function paintEditor() {
+      syncTab();
+      const dirty = editorDirty();
+      document.querySelector("#save-file").disabled = !dirty;
+      document.querySelector("#editor-state").textContent = !focusFile ? "" : (dirty ? "Modified" : "Saved");
+      document.querySelector("#editor-path").textContent = focusFile || "No file open";
+      paintGutter();
+      paintCursor();
+      renderTabs();
+    }
+
+    function confirmDiscard() {
+      return !editorDirty() || window.confirm("Discard unsaved changes in " + focusFile + "?");
+    }
+
+    async function saveEditor() {
+      if (!focusFile || !editorDirty()) return;
+      const payload = await post("/api/code/file", { path: focusFile, text: editor.value });
+      savedText = editor.value;
+      paintEditor();
+      document.querySelector("#editor-state").textContent = "Saved";
+      return payload;
+    }
+
+    function bindSplit(handle, apply) {
+      handle.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        handle.setPointerCapture(event.pointerId);
+        const move = (ev) => apply(ev);
+        const stop = () => {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", stop);
+        };
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", stop);
+      });
+    }
+
     async function showCode(label, loader) {
+      showDockTab("output");
       codeOutput.textContent = label;
       try {
         codeOutput.textContent = await loader();
       } catch (error) {
         codeOutput.textContent = error.message;
       }
+    }
+
+    function paintProject(payload) {
+      document.querySelector("#project-name").textContent = payload.name || "Project";
+      document.querySelector("#project-path").textContent = payload.path || "";
+    }
+
+    async function loadWorkspace() {
+      const response = await fetch("/api/workspace");
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not read the open project.");
+      paintProject(payload);
+    }
+
+    function setOpener(open) {
+      document.querySelector("#opener").hidden = !open;
+      document.querySelector("#browser").hidden = open;
+    }
+
+    async function openPlaces(path) {
+      const response = await fetch("/api/code/places?path=" + encodeURIComponent(path || ""));
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not list folders.");
+      placePath = payload.path || "";
+      document.querySelector("#open-path").value = placePath;
+      const nav = document.querySelector("#place-nav");
+      nav.textContent = "";
+      if (payload.parent) {
+        const up = document.createElement("button");
+        up.type = "button";
+        up.textContent = "Up";
+        up.addEventListener("click", () => openPlaces(payload.parent).catch(showTreeError));
+        nav.appendChild(up);
+      }
+      const home = document.createElement("button");
+      home.type = "button";
+      home.textContent = "Places";
+      home.addEventListener("click", () => openPlaces("").catch(showTreeError));
+      nav.appendChild(home);
+      const list = document.querySelector("#place-list");
+      list.textContent = "";
+      (payload.entries || []).forEach((entry) => {
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = entry.name;
+        button.addEventListener("click", () => openPlaces(entry.path).catch(showTreeError));
+        item.appendChild(button);
+        list.appendChild(item);
+      });
+    }
+
+    async function useFolder(path) {
+      if (!confirmDiscard()) return;
+      const payload = await post("/api/workspace", { path: path });
+      paintProject(payload);
+      browsePath = "";
+      focusFile = "";
+      savedText = "";
+      openTabs.clear();
+      editor.value = "";
+      paintEditor();
+      termCwd.textContent = ".";
+      termOutput.textContent = "Commands run in the open project. ATHENA does not type them for you.";
+      setOpener(false);
+      showDockTab("output");
+      codeOutput.textContent = "Opened " + payload.name + ". Open a file to edit it, or ask about this project.";
+      await openFolder("");
     }
 
     function updateScope() {
@@ -515,12 +887,11 @@
     }
 
     function showTreeError(error) {
+      showDockTab("output");
       codeOutput.textContent = error.message;
     }
 
     async function openFolder(path) {
-      focusFile = "";
-      editPath.value = "";
       const response = await fetch("/api/code/tree?path=" + encodeURIComponent(path || ""));
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not open that folder.");
@@ -547,17 +918,127 @@
     }
 
     async function openFile(path, button) {
+      const normalized = String(path || "").replace(/\\/g, "/");
+      if (openTabs.has(normalized)) {
+        switchTab(normalized);
+        if (button) button.setAttribute("aria-current", "true");
+        return;
+      }
+      if (!confirmDiscard()) return;
       fileList.querySelectorAll("button").forEach((item) => item.removeAttribute("aria-current"));
       if (button) button.setAttribute("aria-current", "true");
-      focusFile = path;
-      editPath.value = path;
+      const response = await fetch("/api/code/file?path=" + encodeURIComponent(normalized));
+      const payload = await response.json();
+      if (!response.ok) {
+        showTreeError(new Error(payload.error || "Could not read that file."));
+        return;
+      }
+      focusFile = payload.path || normalized;
+      editor.value = payload.text || "";
+      savedText = editor.value;
       updateScope();
-      await showCode("Reading " + path + "...", async () => {
-        const response = await fetch("/api/code/file?path=" + encodeURIComponent(path));
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || "Could not read that file.");
-        return payload.text;
+      paintEditor();
+      editor.focus();
+    }
+
+    function showFind() {
+      const bar = document.querySelector("#find-bar");
+      bar.hidden = false;
+      const query = document.querySelector("#find-query");
+      query.focus();
+      query.select();
+    }
+
+    function findInFile(forward) {
+      const query = document.querySelector("#find-query").value;
+      const count = document.querySelector("#find-count");
+      if (!query) {
+        count.textContent = "";
+        return;
+      }
+      const source = editor.value;
+      const haystack = source.toLowerCase();
+      const needle = query.toLowerCase();
+      const matches = haystack.split(needle).length - 1;
+      let index = forward
+        ? haystack.indexOf(needle, editor.selectionEnd)
+        : haystack.lastIndexOf(needle, Math.max(0, editor.selectionStart - 1));
+      if (index < 0) index = forward ? haystack.indexOf(needle) : haystack.lastIndexOf(needle);
+      if (index < 0) {
+        count.textContent = "No matches";
+        return;
+      }
+      editor.focus();
+      editor.setSelectionRange(index, index + needle.length);
+      const line = source.slice(0, index).split("\n").length;
+      editor.scrollTop = Math.max(0, (line - 3) * 21);
+      count.textContent = matches + (matches === 1 ? " match" : " matches");
+      paintCursor();
+    }
+
+    function goToLine() {
+      const raw = window.prompt("Go to line", "1");
+      if (!raw) return;
+      const line = Number(raw);
+      if (!Number.isInteger(line) || line < 1) return;
+      const parts = editor.value.split("\n");
+      const target = Math.min(line, parts.length);
+      let offset = 0;
+      for (let index = 0; index < target - 1; index += 1) offset += parts[index].length + 1;
+      editor.focus();
+      editor.setSelectionRange(offset, offset);
+      editor.scrollTop = Math.max(0, (target - 3) * 21);
+      paintCursor();
+    }
+
+    function hideQuickOpen() {
+      document.querySelector("#quick-open").hidden = true;
+    }
+
+    async function refreshQuick() {
+      const query = document.querySelector("#quick-query").value.trim();
+      const response = await fetch("/api/code/files?q=" + encodeURIComponent(query));
+      const payload = await response.json();
+      const list = document.querySelector("#quick-list");
+      list.textContent = "";
+      const files = (payload.files || []).slice(0, 40);
+      if (quickIndex >= files.length) quickIndex = 0;
+      files.forEach((path, index) => {
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = path;
+        if (index === quickIndex) button.setAttribute("aria-current", "true");
+        button.addEventListener("click", () => {
+          hideQuickOpen();
+          openFile(path).catch(showTreeError);
+        });
+        item.appendChild(button);
+        list.appendChild(item);
       });
+      const current = list.querySelector("[aria-current='true']");
+      if (current) current.scrollIntoView({ block: "nearest" });
+    }
+
+    function showQuickOpen() {
+      const panel = document.querySelector("#quick-open");
+      panel.hidden = false;
+      quickIndex = 0;
+      const query = document.querySelector("#quick-query");
+      query.value = "";
+      query.focus();
+      refreshQuick().catch(showTreeError);
+    }
+
+    async function createFile() {
+      const suggested = browsePath ? browsePath + "/" : "";
+      const raw = window.prompt("New file path in this project", suggested);
+      if (!raw || !raw.trim()) return;
+      const path = raw.trim().replace(/\\/g, "/");
+      await post("/api/code/file", { path: path, text: "", create: true });
+      const slash = path.lastIndexOf("/");
+      await openFolder(slash === -1 ? "" : path.slice(0, slash));
+      await openFile(path);
     }
 
     document.querySelector("#show-talk").addEventListener("click", () => showView("talk"));
@@ -579,27 +1060,86 @@
       });
     });
     document.querySelector("#index").addEventListener("click", () => sendText("/index", false));
+    document.querySelector("#open-project").addEventListener("click", () => {
+      setOpener(true);
+      openPlaces("").catch(showTreeError);
+    });
+    document.querySelector("#close-opener").addEventListener("click", () => setOpener(false));
+    document.querySelector("#open-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const path = document.querySelector("#open-path").value.trim();
+      if (!path) return;
+      useFolder(path).catch(showTreeError);
+    });
+    document.querySelector("#use-folder").addEventListener("click", () => {
+      const path = document.querySelector("#open-path").value.trim();
+      if (!path) {
+        codeOutput.textContent = "Choose a folder first.";
+        return;
+      }
+      useFolder(path).catch(showTreeError);
+    });
     document.querySelector("#list-files").addEventListener("click", () => {
       loadFiles().catch((error) => { codeOutput.textContent = error.message; });
     });
     document.querySelector("#show-folder").addEventListener("click", () => {
       openFolder(browsePath).catch(showTreeError);
     });
+    document.querySelector("#new-file").addEventListener("click", () => {
+      createFile().catch(showTreeError);
+    });
+    document.querySelector("#find-open").addEventListener("click", showFind);
+    document.querySelector("#goto-line").addEventListener("click", goToLine);
+    document.querySelector("#find-bar").addEventListener("submit", (event) => {
+      event.preventDefault();
+      findInFile(true);
+    });
+    document.querySelector("#find-prev").addEventListener("click", () => findInFile(false));
+    document.querySelector("#find-close").addEventListener("click", () => {
+      document.querySelector("#find-bar").hidden = true;
+      editor.focus();
+    });
+    document.querySelector("#quick-query").addEventListener("input", () => {
+      quickIndex = 0;
+      refreshQuick().catch(showTreeError);
+    });
+    document.querySelector("#quick-query").addEventListener("keydown", (event) => {
+      const items = document.querySelectorAll("#quick-list button");
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        quickIndex = Math.min(quickIndex + 1, Math.max(items.length - 1, 0));
+        refreshQuick().catch(showTreeError);
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        quickIndex = Math.max(quickIndex - 1, 0);
+        refreshQuick().catch(showTreeError);
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        const chosen = items[quickIndex];
+        if (!chosen) return;
+        hideQuickOpen();
+        openFile(chosen.textContent).catch(showTreeError);
+      }
+    });
     document.querySelector("#ask-project").addEventListener("click", () => {
       const instruction = document.querySelector("#project-ask").value.trim();
       if (!instruction) {
-        codeOutput.textContent = "Say what you want done in this folder or the whole project. Nothing is written yet.";
+        showDockTab("output");
+        codeOutput.textContent = "Say what you want done in this folder or the whole project. Nothing is written until you Apply.";
         return;
       }
-      showCode("Working in " + (browsePath || "the project") + ". Nothing is written yet...", async () => {
+      showCode("Working in " + (browsePath || "the project") + ". Nothing is written until you Apply...", async () => {
         const payload = await post("/api/code/ask", {
           instruction: instruction,
           path: browsePath,
           focus: focusFile
         });
-        if (payload.path) editPath.value = payload.path;
         return payload.text || "No reply.";
       });
+    });
+    document.querySelector("#ask-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      document.querySelector("#ask-project").click();
     });
     document.querySelector("#terminal").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -628,29 +1168,92 @@
       const payload = await response.json();
       return payload.text;
     }));
-    document.querySelector("#tests").addEventListener("click", () => showCode("Running tests...", async () => {
-      const payload = await post("/api/turn", { text: "/test" });
+    document.querySelector("#tests").addEventListener("click", () => showCode("Running tests in this project...", async () => {
+      const payload = await post("/api/code/test", {});
       return payload.text || "No test output.";
     }));
-    document.querySelector("#propose").addEventListener("click", () => {
-      const path = editPath.value.trim();
-      const instruction = document.querySelector("#edit-instruction").value.trim();
-      if (!path || !instruction) {
-        codeOutput.textContent = "Choose a file and describe the change. Nothing is written yet.";
-        return;
-      }
-      showCode("Drafting a change. Nothing is written yet...", async () => {
-        const payload = await post("/api/turn", { text: "/propose " + path + " " + instruction });
-        return payload.text || "No draft.";
-      });
-    });
     document.querySelector("#apply").addEventListener("click", () => {
-      if (!window.confirm("Write the latest reviewed change to the file?")) return;
+      if (!window.confirm("Write the latest reviewed change into this project?")) return;
       showCode("Writing the reviewed change...", async () => {
-        const payload = await post("/api/turn", { text: "/apply yes" });
+        const payload = await post("/api/code/apply", {});
         return payload.text || "Nothing was written.";
       });
     });
+
+    editor.addEventListener("input", paintEditor);
+    editor.addEventListener("keyup", paintCursor);
+    editor.addEventListener("click", paintCursor);
+    editor.addEventListener("scroll", () => {
+      document.querySelector("#gutter").scrollTop = editor.scrollTop;
+    });
+    editor.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        saveEditor().catch(showTreeError);
+      } else if (event.key === "Tab") {
+        event.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.setRangeText("  ", start, end, "end");
+        paintEditor();
+      }
+    });
+    document.querySelector("#save-file").addEventListener("click", () => {
+      saveEditor().catch(showTreeError);
+    });
+    document.querySelector("#tab-terminal").addEventListener("click", () => showDockTab("terminal"));
+    document.querySelector("#tab-output").addEventListener("click", () => showDockTab("output"));
+    document.querySelector("#hide-dock").addEventListener("click", () => setDock(false));
+    document.querySelector("#toggle-dock").addEventListener("click", () => {
+      setDock(codeView.classList.contains("dock-hidden"));
+    });
+    document.querySelector("#toggle-sidebar").addEventListener("click", () => {
+      setSidebar(codeView.classList.contains("sidebar-hidden"));
+    });
+    bindSplit(document.querySelector("#side-split"), (event) => {
+      const width = Math.min(Math.max(event.clientX - document.querySelector("#ide").getBoundingClientRect().left, 180), 520);
+      document.querySelector(".files").style.width = width + "px";
+    });
+    bindSplit(document.querySelector("#dock-split"), (event) => {
+      const bottom = codeView.getBoundingClientRect().bottom;
+      const height = Math.min(Math.max(bottom - event.clientY - 28, 96), window.innerHeight * 0.7);
+      document.querySelector("#dock").style.height = height + "px";
+    });
+    document.addEventListener("keydown", (event) => {
+      if (!codeView.classList.contains("active")) return;
+      const key = event.key.toLowerCase();
+      const mod = event.ctrlKey || event.metaKey;
+      if (event.key === "Escape") {
+        hideQuickOpen();
+        document.querySelector("#find-bar").hidden = true;
+        return;
+      }
+      if (!mod) return;
+      if (key === "p") {
+        event.preventDefault();
+        showQuickOpen();
+      } else if (key === "f") {
+        event.preventDefault();
+        showFind();
+      } else if (key === "g") {
+        event.preventDefault();
+        goToLine();
+      } else if (key === "b") {
+        event.preventDefault();
+        setSidebar(codeView.classList.contains("sidebar-hidden"));
+      } else if (event.key === "`") {
+        event.preventDefault();
+        const opening = codeView.classList.contains("dock-hidden");
+        setDock(opening);
+        if (opening) showDockTab("terminal");
+      }
+    });
+    window.addEventListener("beforeunload", (event) => {
+      if (!editorDirty()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+    paintEditor();
 
     fetch("/api/status").then((response) => response.json()).then(paintModes).catch(() => {
       model.textContent = "Offline";
