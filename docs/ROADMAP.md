@@ -61,7 +61,7 @@ Status: implemented with `scripts/athena_web.py`, `/web`, `/askweb`, and `/webmo
 
 Done when you can speak to ATHENA and hear the response.
 
-Status: text-to-speech and one-shot push-to-talk are implemented in `scripts/athena_voice.py`. A wake word is still later.
+Status: text-to-speech and one-shot push-to-talk are implemented in `scripts/athena_voice.py`. Mac terminal listening uses on-device recognition when Swift is installed. The local page listens through the browser. A wake word is still later.
 
 ## Phase 7: Coding Assistant
 
@@ -98,7 +98,7 @@ Status: `/plan`, `/approve`, and `/reject` run an allowlist one step at a time. 
 
 ## Later, On A Larger Machine
 
-- Web UI
+- A hosted interface such as Open WebUI
 - Vector search
 - Wake word
 - Scheduled checks

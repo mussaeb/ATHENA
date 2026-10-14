@@ -1,6 +1,6 @@
 # Milestone 6: Voice
 
-ATHENA can read replies aloud and take one spoken question on Windows.
+ATHENA can read replies aloud, take one spoken question, and do both from the local page.
 
 ## Hear Replies
 
@@ -26,14 +26,31 @@ Code blocks are left out of the spoken text.
 
 ## Push To Talk
 
-On Windows:
-
 ```text
 /listen
 ```
 
-ATHENA listens once, prints what it heard, and answers that text. Speak, then pause. If the speech recognizer is not installed, the message says so and the keyboard still works.
+ATHENA listens once, prints what it heard, and answers that text. Speak, then pause.
 
-macOS and Linux keep text input for questions. `/speak on` can still read the reply when a local voice command exists.
+- Windows uses the built-in speech recognizer
+- macOS uses on-device recognition through `scripts/athena_listen_mac.swift` when the Swift command is installed. The first run asks for microphone and speech-recognition permission for Terminal
+- Other systems keep keyboard input
+
+If listening is unavailable, the message says so and the keyboard still works.
+
+## Local Page
+
+```bash
+python3 scripts/athena_ui.py
+```
+
+Open http://127.0.0.1:8765 if it does not open on its own.
+
+- **Listen** uses the browser microphone and sends that sentence as the question
+- **Speak replies** reads the answer with the operating system voice
+- **Documents** and **Web** attach those sources to ordinary questions
+- **Code** lists project files, shows git status, drafts a change, and writes it only after **Apply**
+
+In Chrome, the microphone recognizer sends audio to Google. The answer is still produced by the local model. Safari can use Apple's recognizer instead.
 
 A wake word is intentionally later. This milestone is one button, one utterance.

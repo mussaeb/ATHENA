@@ -113,6 +113,7 @@ COMMAND_NAMES = frozenset(
         "/status",
         "/test",
         "/tools",
+        "/ui",
         "/web",
         "/webmode",
     }
@@ -181,7 +182,8 @@ Web:
 Voice and vision:
   /speak on|off             speak replies with the operating system voice
   /say <text>               speak one line
-  /listen                   push-to-talk once, then answer
+  /listen                   hear one utterance, then answer
+  /ui                       show how to open the local page
   /see <image> <question>   describe an image when ATHENA_VISION_MODEL is set
 
 Code:
@@ -368,6 +370,7 @@ class ChatSession:
                 f"Document mode: {'on' if self.docmode else 'off'}. Use /docmode on to search docs for normal questions.",
                 f"Web mode: {'on' if self.webmode else 'off'}. Use /web, /askweb, or /webmode on for live sources.",
                 f"Speech: {'on' if self.speak else 'off'}. Use /speak on to hear replies.",
+                "Local page: python3 scripts/athena_ui.py  then open http://127.0.0.1:8765",
                 f"Chat log: {self.transcript_path}",
                 "Type /help for commands or /exit to quit.",
             ]
@@ -389,8 +392,33 @@ class ChatSession:
         )
 
     def reply(self, text: str, prefix: str = "athena>") -> None:
+        captured = getattr(self, "_turn_replies", None)
+        if captured is not None:
+            captured.append(text)
         print(f"{prefix} {text}")
         print()
+
+    def exchange(self, user_text: str, *, defer_speech: bool = False) -> dict[str, object]:
+        self._turn_replies = []
+        saved_speak = self.speak
+        if defer_speech:
+            self.speak = False
+        action = "continue"
+        try:
+            action = self.handle(user_text)
+        finally:
+            replies = list(self._turn_replies)
+            self._turn_replies = None
+            self.speak = saved_speak
+        return {
+            "text": "\n\n".join(replies).strip(),
+            "exit": action == "exit",
+            "speak": self.speak,
+            "docmode": self.docmode,
+            "webmode": self.webmode,
+            "session": self.session_name,
+            "model": MODEL,
+        }
 
     def append_transcript(self, role: str, content: str) -> None:
         self.log_dir.mkdir(parents=True, exist_ok=True)
@@ -678,6 +706,15 @@ class ChatSession:
         )
         if updated is not None:
             self.webmode = updated
+        return "continue"
+
+    def handle_ui(self, user_text: str) -> str:
+        self.reply(
+            "The local page is a separate process. From the ATHENA folder run: "
+            "python3 scripts/athena_ui.py  then open http://127.0.0.1:8765. "
+            "On Windows, use python instead of python3. "
+            "Listen on that page uses the browser microphone. Speak replies uses the operating system voice."
+        )
         return "continue"
 
     def handle_speak(self, user_text: str) -> str:
@@ -1002,6 +1039,7 @@ class ChatSession:
             "/status": self.handle_model,
             "/test": self.handle_test,
             "/tools": self.handle_tools,
+            "/ui": self.handle_ui,
             "/web": self.handle_web,
             "/webmode": self.handle_webmode,
         }

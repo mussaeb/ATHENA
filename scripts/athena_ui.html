@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ATHENA</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3efe6;
+      --ink: #1d1914;
+      --muted: #6e655c;
+      --line: #e2d9cc;
+      --card: #fffdf8;
+      --teal: #0c5c56;
+      --teal-ink: #f4fffd;
+      --user: #e5f3f1;
+      --danger: #8d3b1b;
+      --shadow: 0 16px 40px rgba(40, 30, 18, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(circle at top left, rgba(12, 92, 86, 0.08), transparent 32rem),
+        var(--paper);
+      color: var(--ink);
+      font: 16px/1.5 "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+    button, input, textarea { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 2px solid var(--teal);
+      outline-offset: 2px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 253, 248, 0.9);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .brand {
+      font-family: Palatino, "Palatino Linotype", Georgia, serif;
+      font-size: 1.45rem;
+      letter-spacing: 0.08em;
+    }
+    .brand span { color: var(--muted); font-size: 0.78rem; letter-spacing: 0.14em; margin-left: 0.4rem; }
+    nav { display: flex; gap: 0.4rem; }
+    nav button, .toolbar button, .composer button, .code-actions button, .file-tools button {
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 999px;
+      padding: 0.4rem 0.9rem;
+    }
+    nav button[aria-pressed="true"], .toolbar label.on, #mic[aria-pressed="true"] {
+      background: var(--teal);
+      color: var(--teal-ink);
+      border-color: var(--teal);
+    }
+    #model { margin-left: auto; color: var(--muted); font-size: 0.92rem; white-space: nowrap; }
+    main { flex: 1; min-width: 0; min-height: 0; }
+    .view { height: 100%; display: none; }
+    .view.active { display: flex; flex-direction: column; }
+    #talk {
+      max-width: 52rem;
+      margin: 0 auto;
+      width: 100%;
+      min-width: 0;
+      height: 100%;
+      min-height: 0;
+      padding: 0 1rem 1rem;
+      flex-direction: column;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      padding: 0.9rem 0 0.4rem;
+    }
+    .toolbar label {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 999px;
+      padding: 0.35rem 0.8rem;
+    }
+    #log {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding: 0.5rem 0 1rem;
+    }
+    article {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 1.1rem;
+      padding: 0.8rem 1rem;
+      margin: 0.55rem 0;
+      box-shadow: var(--shadow);
+      white-space: pre-wrap;
+    }
+    article.you { background: var(--user); margin-left: 12%; }
+    article.athena { margin-right: 8%; }
+    .caption { margin: 0 0 0.35rem; color: var(--muted); font-size: 0.82rem; }
+    .empty { color: var(--muted); padding: 2rem 0.2rem; }
+    .composer {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.6rem;
+      align-items: end;
+      padding-top: 0.4rem;
+    }
+    textarea {
+      width: 100%;
+      min-height: 3.2rem;
+      max-height: 9rem;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      padding: 0.75rem 0.9rem;
+      background: var(--card);
+    }
+    #mic { min-width: 5.5rem; border-radius: 1rem; padding: 0.75rem 0.9rem; }
+    #send { background: var(--ink); color: var(--paper); border-color: var(--ink); border-radius: 1rem; padding: 0.75rem 1rem; }
+    .empty, .hint { max-width: 100%; overflow-wrap: anywhere; }
+    .hint { margin: 0.45rem 0 0; color: var(--muted); font-size: 0.82rem; }
+    #code {
+      min-width: 0;
+      display: none;
+      grid-template-columns: 18rem 1fr;
+      gap: 1rem;
+      padding: 1rem;
+      height: 100%;
+    }
+    #code.active { display: grid; }
+    .files, .workspace {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 1.1rem;
+      min-height: 0;
+      box-shadow: var(--shadow);
+    }
+    .files { display: flex; flex-direction: column; padding: 0.8rem; }
+    .file-tools { display: flex; gap: 0.4rem; }
+    .file-tools input { flex: 1; border: 1px solid var(--line); border-radius: 999px; padding: 0.4rem 0.7rem; }
+    #file-list { list-style: none; margin: 0.8rem 0 0; padding: 0; overflow: auto; }
+    #file-list button {
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      border-radius: 0.5rem;
+      padding: 0.28rem 0.4rem;
+      color: var(--ink);
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    #file-list button:hover, #file-list button[aria-current="true"] { background: var(--user); }
+    .workspace { display: flex; flex-direction: column; min-height: 0; padding: 0.9rem; gap: 0.7rem; }
+    .code-actions, .draft { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .draft input { flex: 1; min-width: 12rem; border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.45rem 0.7rem; }
+    #apply { background: var(--teal); color: var(--teal-ink); border-color: var(--teal); }
+    pre {
+      margin: 0;
+      flex: 1;
+      overflow: auto;
+      background: #1d1914;
+      color: #f6f1e8;
+      border-radius: 0.9rem;
+      padding: 0.9rem 1rem;
+      white-space: pre-wrap;
+      font: 0.86rem/1.45 ui-monospace, "Cascadia Code", Consolas, monospace;
+    }
+    @media (max-width: 800px) {
+      header { flex-wrap: wrap; }
+      #model { margin-left: 0; flex-basis: 100%; }
+      article.you, article.athena { margin-left: 0; margin-right: 0; }
+      .composer { grid-template-columns: 1fr 1fr; }
+      textarea { grid-column: 1 / -1; }
+      #code.active { grid-template-columns: 1fr; overflow: auto; }
+      .files { max-height: 16rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">ATHENA <span>LOCAL</span></div>
+    <nav>
+      <button type="button" id="show-talk" aria-pressed="true">Talk</button>
+      <button type="button" id="show-code" aria-pressed="false">Code</button>
+    </nav>
+    <div id="model">Starting</div>
+  </header>
+  <main>
+    <section id="talk" class="view active">
+      <div class="toolbar">
+        <label id="doc-label"><input id="docmode" type="checkbox"> Documents</label>
+        <label id="web-label"><input id="webmode" type="checkbox"> Web</label>
+        <label id="speak-label"><input id="speak" type="checkbox"> Speak replies</label>
+        <button type="button" id="index">Index documents</button>
+      </div>
+      <div id="log" aria-live="polite">
+        <p class="empty">Ask from the box, or press Listen and speak. Turn on Documents for your files and Web for the internet. Both can stay on together.</p>
+      </div>
+      <form id="composer" class="composer">
+        <button type="button" id="mic" aria-pressed="false">Listen</button>
+        <textarea id="text" rows="2" placeholder="Ask ATHENA"></textarea>
+        <button type="submit" id="send">Send</button>
+      </form>
+      <p id="heard" class="hint"></p>
+      <p class="hint">Listening uses the browser’s speech recognizer. In Chrome, that recognizer sends audio to Google. The answer is still produced by the local model. Spoken replies use the voice already on this computer.</p>
+    </section>
+    <section id="code" class="view">
+      <aside class="files">
+        <div class="file-tools">
+          <input id="file-query" type="search" placeholder="Find a project file" aria-label="Find a project file">
+          <button type="button" id="list-files">List</button>
+        </div>
+        <ul id="file-list"></ul>
+      </aside>
+      <div class="workspace">
+        <div class="code-actions">
+          <button type="button" id="git">Git status</button>
+          <button type="button" id="diff">Diff</button>
+          <button type="button" id="tests">Run tests</button>
+        </div>
+        <div class="draft">
+          <input id="edit-path" type="text" placeholder="Path, such as vision/README.md" aria-label="File to change">
+          <input id="edit-instruction" type="text" placeholder="What should change?" aria-label="Change to draft">
+          <button type="button" id="propose">Draft change</button>
+          <button type="button" id="apply">Apply</button>
+        </div>
+        <pre id="code-output">Choose a file, or draft a change. Apply writes only after you review the diff.</pre>
+      </div>
+    </section>
+  </main>
+  <script>
+    const log = document.querySelector("#log");
+    const text = document.querySelector("#text");
+    const heard = document.querySelector("#heard");
+    const mic = document.querySelector("#mic");
+    const model = document.querySelector("#model");
+    const codeOutput = document.querySelector("#code-output");
+    const fileList = document.querySelector("#file-list");
+    const editPath = document.querySelector("#edit-path");
+    let recognition = null;
+    let busy = false;
+
+    function setHeard(message) {
+      heard.textContent = message;
+    }
+
+    function showView(name) {
+      document.querySelector("#talk").classList.toggle("active", name === "talk");
+      document.querySelector("#code").classList.toggle("active", name === "code");
+      document.querySelector("#talk").style.display = name === "talk" ? "flex" : "none";
+      document.querySelector("#show-talk").setAttribute("aria-pressed", name === "talk");
+      document.querySelector("#show-code").setAttribute("aria-pressed", name === "code");
+      if (name === "code" && !fileList.children.length) {
+        loadFiles().catch((error) => { codeOutput.textContent = error.message; });
+      }
+    }
+
+    function paintModes(state) {
+      document.querySelector("#docmode").checked = Boolean(state.docmode);
+      document.querySelector("#webmode").checked = Boolean(state.webmode);
+      document.querySelector("#speak").checked = Boolean(state.speak);
+      document.querySelector("#doc-label").classList.toggle("on", state.docmode);
+      document.querySelector("#web-label").classList.toggle("on", state.webmode);
+      document.querySelector("#speak-label").classList.toggle("on", state.speak);
+      model.textContent = state.model || "Local model";
+    }
+
+    async function post(url, body) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "The page could not complete that request.");
+      return payload;
+    }
+
+    async function saveModes() {
+      const payload = await post("/api/settings", {
+        docmode: document.querySelector("#docmode").checked,
+        webmode: document.querySelector("#webmode").checked,
+        speak: document.querySelector("#speak").checked
+      });
+      paintModes(payload);
+    }
+
+    function addMessage(role, value, caption) {
+      const empty = log.querySelector(".empty");
+      if (empty) empty.remove();
+      const article = document.createElement("article");
+      article.className = role;
+      if (caption) {
+        const note = document.createElement("p");
+        note.className = "caption";
+        note.textContent = caption;
+        article.appendChild(note);
+      }
+      const body = document.createElement("p");
+      body.style.margin = "0";
+      body.style.whiteSpace = "pre-wrap";
+      body.textContent = value;
+      article.appendChild(body);
+      log.appendChild(article);
+      log.scrollTop = log.scrollHeight;
+      return body;
+    }
+
+    function sourceCaption() {
+      const sources = [];
+      if (document.querySelector("#docmode").checked) sources.push("documents");
+      if (document.querySelector("#webmode").checked) sources.push("the web");
+      return sources.length ? "Checked " + sources.join(" and ") : "";
+    }
+
+    function activityFor(value) {
+      if (value.startsWith("/askdocs") || value.startsWith("/index")) return "Searching documents...";
+      if (value.startsWith("/askweb")) return "Searching the web...";
+      if (value.startsWith("/")) return "Working...";
+      const caption = sourceCaption();
+      return caption ? "Searching " + caption.replace("Checked ", "") + "..." : "Thinking...";
+    }
+
+    async function sendText(value, fromVoice) {
+      const message = value.trim();
+      if (!message || busy) return;
+      busy = true;
+      text.value = "";
+      const caption = message.startsWith("/") ? "" : sourceCaption();
+      addMessage("you", message, fromVoice ? "Heard" : caption);
+      const pending = addMessage("athena", activityFor(message));
+      try {
+        const payload = await post("/api/turn", { text: message });
+        pending.textContent = payload.text || "No reply.";
+        if (payload.voiced) setHeard("Speaking the reply on this computer.");
+      } catch (error) {
+        pending.textContent = error.message;
+      } finally {
+        busy = false;
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    function listenOnce() {
+      const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!Recognition) {
+        setHeard("This browser cannot hear you. Type the question, or open the page in Chrome or Safari.");
+        return;
+      }
+      if (recognition) {
+        recognition.abort();
+        recognition = null;
+        mic.setAttribute("aria-pressed", "false");
+        mic.textContent = "Listen";
+        return;
+      }
+      const heardSpeech = new Recognition();
+      recognition = heardSpeech;
+      heardSpeech.lang = navigator.language || "en-US";
+      heardSpeech.interimResults = true;
+      heardSpeech.continuous = false;
+      let sent = false;
+      mic.setAttribute("aria-pressed", "true");
+      mic.textContent = "Stop";
+      setHeard("Listening. Speak, then pause.");
+      heardSpeech.onresult = (event) => {
+        let transcript = "";
+        let isFinal = false;
+        for (const result of event.results) {
+          transcript += result[0].transcript;
+          if (result.isFinal) isFinal = true;
+        }
+        text.value = transcript.trim();
+        if (isFinal && !sent) {
+          sent = true;
+          sendText(transcript, true);
+        }
+      };
+      heardSpeech.onerror = (event) => {
+        const blocked = event.error === "not-allowed" || event.error === "service-not-allowed";
+        setHeard(blocked ? "The browser blocked the microphone. Allow it for this page and press Listen again." : "Listening stopped. You can type the question instead.");
+      };
+      heardSpeech.onend = () => {
+        recognition = null;
+        mic.setAttribute("aria-pressed", "false");
+        mic.textContent = "Listen";
+      };
+      heardSpeech.start();
+    }
+
+    async function showCode(label, loader) {
+      codeOutput.textContent = label;
+      try {
+        codeOutput.textContent = await loader();
+      } catch (error) {
+        codeOutput.textContent = error.message;
+      }
+    }
+
+    async function loadFiles() {
+      const query = document.querySelector("#file-query").value.trim();
+      const response = await fetch("/api/code/files?q=" + encodeURIComponent(query));
+      const payload = await response.json();
+      fileList.textContent = "";
+      (payload.files || []).forEach((path) => {
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = path;
+        button.addEventListener("click", () => openFile(path, button));
+        item.appendChild(button);
+        fileList.appendChild(item);
+      });
+      if (!payload.files || !payload.files.length) {
+        codeOutput.textContent = payload.text || "No matching project files found.";
+      }
+    }
+
+    async function openFile(path, button) {
+      fileList.querySelectorAll("button").forEach((item) => item.removeAttribute("aria-current"));
+      if (button) button.setAttribute("aria-current", "true");
+      editPath.value = path;
+      await showCode("Reading " + path + "...", async () => {
+        const response = await fetch("/api/code/file?path=" + encodeURIComponent(path));
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not read that file.");
+        return payload.text;
+      });
+    }
+
+    document.querySelector("#show-talk").addEventListener("click", () => showView("talk"));
+    document.querySelector("#show-code").addEventListener("click", () => showView("code"));
+    document.querySelector("#composer").addEventListener("submit", (event) => {
+      event.preventDefault();
+      sendText(text.value, false);
+    });
+    text.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        sendText(text.value, false);
+      }
+    });
+    mic.addEventListener("click", listenOnce);
+    ["#docmode", "#webmode", "#speak"].forEach((selector) => {
+      document.querySelector(selector).addEventListener("change", () => {
+        saveModes().catch((error) => setHeard(error.message));
+      });
+    });
+    document.querySelector("#index").addEventListener("click", () => sendText("/index", false));
+    document.querySelector("#list-files").addEventListener("click", () => {
+      loadFiles().catch((error) => { codeOutput.textContent = error.message; });
+    });
+    document.querySelector("#git").addEventListener("click", () => showCode("Reading git status...", async () => {
+      const response = await fetch("/api/code/git?view=status");
+      const payload = await response.json();
+      return payload.text;
+    }));
+    document.querySelector("#diff").addEventListener("click", () => showCode("Reading the diff...", async () => {
+      const response = await fetch("/api/code/git?view=diff");
+      const payload = await response.json();
+      return payload.text;
+    }));
+    document.querySelector("#tests").addEventListener("click", () => showCode("Running tests...", async () => {
+      const payload = await post("/api/turn", { text: "/test" });
+      return payload.text || "No test output.";
+    }));
+    document.querySelector("#propose").addEventListener("click", () => {
+      const path = editPath.value.trim();
+      const instruction = document.querySelector("#edit-instruction").value.trim();
+      if (!path || !instruction) {
+        codeOutput.textContent = "Choose a file and describe the change. Nothing is written yet.";
+        return;
+      }
+      showCode("Drafting a change. Nothing is written yet...", async () => {
+        const payload = await post("/api/turn", { text: "/propose " + path + " " + instruction });
+        return payload.text || "No draft.";
+      });
+    });
+    document.querySelector("#apply").addEventListener("click", () => {
+      if (!window.confirm("Write the latest reviewed change to the file?")) return;
+      showCode("Writing the reviewed change...", async () => {
+        const payload = await post("/api/turn", { text: "/apply yes" });
+        return payload.text || "Nothing was written.";
+      });
+    });
+
+    fetch("/api/status").then((response) => response.json()).then(paintModes).catch(() => {
+      model.textContent = "Offline";
+    });
+    showView(location.hash === "#code" ? "code" : "talk");
+  </script>
+</body>
+</html>

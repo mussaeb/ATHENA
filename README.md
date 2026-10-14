@@ -43,6 +43,14 @@ ollama pull qwen2.5:1.5b
 python3 scripts/athena_chat.py
 ```
 
+Or open the local page, which adds a microphone button and a code view:
+
+```bash
+python3 scripts/athena_ui.py
+```
+
+That opens http://127.0.0.1:8765. Leave the terminal window open while you use the page.
+
 On Windows, use `python` instead of `python3`.
 
 If the 1.5B model feels comfortable:
@@ -101,7 +109,7 @@ For now, do not run all of these at the same time:
 - An Ollama model
 - Open WebUI
 
-ATHENA stays in the terminal. Web UI, vector databases, and a Docker-based stack wait until the machine has more memory.
+The local page stays on this computer and does not add a second model. A hosted interface such as Open WebUI, vector databases, and a Docker-based stack wait until the machine has more memory.
 
 ## Project Map
 

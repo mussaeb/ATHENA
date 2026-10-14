@@ -108,12 +108,52 @@ def speak_unix(text: str) -> int:
 def listen() -> int:
     if sys.platform == "win32":
         return listen_windows()
+    if sys.platform == "darwin":
+        return listen_darwin()
 
     print(
-        "Push-to-talk uses the Windows speech recognizer. "
-        "On this system, type your message. /speak on can still read replies aloud when a local voice is installed."
+        "This system has no built-in dictation command. "
+        "Type your message, or run the local page with scripts/athena_ui.py and press Listen. "
+        "/speak on can still read replies aloud when a local voice is installed.",
+        file=sys.stderr,
     )
     return 1
+
+
+def listen_darwin() -> int:
+    runner = shutil.which("swift")
+    script = Path(__file__).with_name("athena_listen_mac.swift")
+    if runner is None or not script.is_file():
+        print(
+            "Mac voice input needs the Swift command from the Xcode command line tools. "
+            "Install them with xcode-select --install, or run python3 scripts/athena_ui.py and press Listen. "
+            "That page uses the browser microphone, and Speak replies uses the Mac voice.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        result = subprocess.run(
+            [runner, str(script)],
+            capture_output=True,
+            text=True,
+            timeout=40,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        print("Listening timed out. Grant microphone access if macOS asked, then try again.", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"Listening failed: {exc}", file=sys.stderr)
+        return 1
+
+    if result.returncode == 0 and result.stdout.strip():
+        print(result.stdout.strip())
+        return 0
+
+    detail = result.stderr.strip() or result.stdout.strip() or "No speech recognized."
+    print(detail, file=sys.stderr)
+    return result.returncode or 1
 
 
 def listen_windows() -> int:

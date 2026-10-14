@@ -57,6 +57,17 @@ class ChatTests(unittest.TestCase):
         self.assertIsNotNone(athena_chat.secret_memory_warning("The api key is abc"))
         self.assertIsNone(athena_chat.secret_memory_warning("Prefer a small context window"))
 
+    def test_exchange_returns_the_reply_text(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            session = athena_chat.ChatSession(log_dir=Path(directory))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                result = session.exchange("/docmode on", defer_speech=True)
+            self.assertTrue(result["docmode"])
+            self.assertIn("Document mode is on", str(result["text"]))
+            self.assertFalse(result["exit"])
+            self.assertIn("Document mode is on", output.getvalue())
+
     def test_default_prompt_forbids_fake_searches(self) -> None:
         prompt = athena_chat.DEFAULT_SYSTEM_PROMPT
         self.assertIn("Web search results:", prompt)

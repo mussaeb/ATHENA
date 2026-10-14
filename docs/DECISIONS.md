@@ -74,3 +74,13 @@ Reason:
 
 - Whisper, Piper, and extra Python packages can be added later on a larger machine
 - The 8 GB machine does not need another model loaded for a first voice loop
+
+## 009: A local page, with the browser only for the microphone
+
+`scripts/athena_ui.py` serves one page on 127.0.0.1. Spoken replies still use the operating system voice. The Listen button uses the browser speech recognizer because macOS has no dependency-free dictation command. `/listen` on a Mac uses on-device recognition when the Swift tools are installed.
+
+Reason:
+
+- Open WebUI and another model do not fit the 8 GB budget
+- Chat, document search, web search, and reviewed edits can share one page without a frontend toolchain
+- Chrome's recognizer is not fully local, so the page says that plainly

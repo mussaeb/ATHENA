@@ -99,14 +99,26 @@ Chat logs are saved automatically in:
 logs/chats/
 ```
 
-## Step 5: Keep Memory Stable
+## Step 5: Open The Local Page
+
+The terminal can speak replies with `/speak on`. Hearing you from that same terminal needs the Xcode command line tools, because `/listen` runs a small Swift recognizer.
+
+The page is the easier way to talk and to review code:
+
+```bash
+python3 scripts/athena_ui.py
+```
+
+Use **Listen** for a spoken question and **Speak replies** to hear the answer. Turn on **Documents**, **Web**, or both before you ask. The **Code** view can read files and draft a change; **Apply** is what writes it.
+
+## Step 6: Keep Memory Stable
 
 When using ATHENA on 8 GB:
 
 - Close unused browser tabs
 - Quit Docker Desktop unless needed
 - Use one local model at a time
-- Prefer terminal chat before adding a web UI
+- Use the local ATHENA page instead of Open WebUI
 - Restart Ollama if the machine feels slow
 
 ## Later Upgrade Path

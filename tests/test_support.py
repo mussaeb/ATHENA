@@ -43,6 +43,22 @@ class SupportTests(unittest.TestCase):
             self.assertNotIn("shell=True", text)
             self.assertNotIn("os.system(", text)
 
+    def test_mac_listen_explains_when_swift_is_missing(self) -> None:
+        import contextlib
+        import io
+
+        original = athena_voice.shutil.which
+        athena_voice.shutil.which = lambda _name: None
+        error = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(error):
+                code = athena_voice.listen_darwin()
+        finally:
+            athena_voice.shutil.which = original
+        self.assertEqual(code, 1)
+        self.assertIn("athena_ui.py", error.getvalue())
+        self.assertTrue((athena_common.PROJECT_ROOT / "scripts" / "athena_listen_mac.swift").is_file())
+
     def test_speech_cleanup_drops_code_blocks(self) -> None:
         spoken = athena_voice.clean_for_speech("Before ```print('secret')``` after")
         self.assertNotIn("secret", spoken)
