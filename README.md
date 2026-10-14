@@ -1,74 +1,51 @@
 # Project ATHENA
 
-ATHENA is your local-first personal AI assistant project.
+ATHENA is a local-first personal AI assistant for an 8 GB machine.
 
-The first version is intentionally small because this Mac has 8 GB of memory. We will start with a lightweight local model through Ollama, a simple terminal chat client, and clear documentation. Later phases add memory, document search, voice, vision, Docker, Kubernetes, Jenkins, and OpenStack.
+It talks to a small model through Ollama, keeps notes and documents on disk, and can use the web, voice, project files, and infrastructure tools when you ask. Every script uses the Python standard library.
 
-## Current Milestone
+## Current State
 
-Milestone 1: foundation for an 8 GB Mac.
+The lightweight roadmap is in place:
 
-Included now:
+- Local chat through Ollama
+- Saved chats, session names, and search over past chats
+- Long-term memory in `memory/profile.md`
+- Keyword document search
+- Web search with source URLs
+- Operating-system speech
+- Read-only project inspection, tests, and reviewed file edits
+- Read-only Docker, Kubernetes, Jenkins, and OpenStack checks
+- Approved multi-step plans
+- Optional image description when you choose a vision model
 
-- Project structure for the full ATHENA roadmap
-- Mac setup guide tuned for low memory
-- Dependency-free Python health check
-- Dependency-free Python Ollama chat client
-- Local chat history
-- Simple long-term memory
-- Lightweight local document search
-- Example configuration file
+Normal chat does not search the web or your documents until you turn those modes on. ATHENA is told to say when it does not have a live source.
 
 ## Quick Start
 
-1. Check your machine:
+1. Check the machine:
 
 ```bash
 python3 scripts/athena_check.py
 ```
 
-2. Install Ollama from:
+2. Install Ollama from [https://ollama.com/download](https://ollama.com/download).
 
-[https://ollama.com/download](https://ollama.com/download)
-
-3. Start with a small model:
+3. Pull a small model:
 
 ```bash
 ollama pull qwen2.5:1.5b
 ```
 
-4. Chat with ATHENA:
+4. Start ATHENA:
 
 ```bash
 python3 scripts/athena_chat.py
 ```
 
-ATHENA will show this at startup:
+On Windows, use `python` instead of `python3`.
 
-```text
-Local mode: no internet tools are connected yet.
-```
-
-That means the model is answering from its trained knowledge, not from live web search. If it claims it checked the internet, that is a model mistake. Internet search will be added as a later milestone with a real tool.
-
-Useful chat commands:
-
-```text
-/help
-/model
-/memory
-/remember My Mac has 8 GB memory.
-/initdocs
-/sources
-/index
-/docmode on
-/findfile resume
-/search ATHENA memory
-/askdocs what can ATHENA do now?
-/exit
-```
-
-If the 1.5B model feels comfortable, try:
+If the 1.5B model feels comfortable:
 
 ```bash
 ollama pull qwen2.5:3b
@@ -81,44 +58,64 @@ If responses feel slow, use a smaller context:
 ATHENA_NUM_CTX=1024 python3 scripts/athena_chat.py
 ```
 
+Copy `config/athena.example.env` to `.env` when you want those settings loaded automatically.
+
+## Useful Commands
+
+Type `/help` inside the chat for the full list.
+
+```text
+/remember My Mac has 8 GB memory.
+/name project-review
+/history ATHENA memory
+/recall what did we decide about documents?
+/search ATHENA memory
+/askdocs what can ATHENA do now?
+/web Python release
+/askweb what is the current stable Python version?
+/speak on
+/git
+/read README.md
+/plan summarize the README and the git status
+/approve
+/exit
+```
+
+`/propose README.md Mention the test command` drafts a diff. `/apply yes` writes it after you review that diff.
+
+## Tests
+
+The tests do not need Ollama:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
 ## 8 GB Rule
 
 For now, do not run all of these at the same time:
 
 - Docker Desktop
-- VS Code with many extensions
-- Browser with many tabs
-- Ollama model
+- An editor with many extensions
+- A browser with many tabs
+- An Ollama model
 - Open WebUI
 
-On this Mac, ATHENA should begin as a terminal assistant. Once the core works, we can add a web UI carefully.
+ATHENA stays in the terminal. Web UI, vector databases, and a Docker-based stack wait until the machine has more memory.
 
 ## Project Map
 
-- `docs/` - setup, roadmap, architecture, decisions
-- `scripts/` - local commands and helper tools
+- `docs/` - setup, roadmap, architecture, and milestone notes
+- `scripts/` - local commands
 - `config/` - example settings
-- `memory/` - later long-term memory store
-- `rag/` - later document search system
-- `voice/` - later speech-to-text and text-to-speech
-- `vision/` - later image and screenshot understanding
-- `infrastructure/` - later Docker, Kubernetes, OpenStack, Jenkins integrations
-- `tests/` - tests for ATHENA code
-
-## Next Milestones
-
-1. Local chat through Ollama
-2. Save conversation history
-3. Add simple memory notes
-4. Add document search
-5. Add internet search
-6. Add voice input and output
-7. Add infrastructure tools
-
-Document search details are in [docs/MILESTONE_4_DOCUMENT_SEARCH.md](docs/MILESTONE_4_DOCUMENT_SEARCH.md).
-
-By default ATHENA searches `rag/sources/`. To let it search other folders on your Mac, copy `config/document_sources.example.json` to `config/document_sources.json` and add only the folders you want ATHENA to index.
+- `memory/` - long-term memory
+- `rag/` - document sources and the local keyword index
+- `voice/` - speech notes; the command is `scripts/athena_voice.py`
+- `vision/` - image notes; vision stays off until `ATHENA_VISION_MODEL` is set
+- `infrastructure/` - read-only infrastructure notes; the command is `scripts/athena_infra.py`
+- `tests/` - unit tests for the standard-library tools
+- `logs/` - chats, proposals, plans, and the safety log
 
 ## GitHub
 
-See [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md) for commands to create the GitHub repository and push ATHENA.
+See [docs/GITHUB_SETUP.md](docs/GITHUB_SETUP.md).

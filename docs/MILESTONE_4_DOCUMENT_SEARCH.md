@@ -119,6 +119,8 @@ python3 scripts/athena_docs.py index
 
 ## Search Documents
 
+`/search` looks through local documents. `/web` is the internet command.
+
 From ATHENA chat:
 
 ```text
