@@ -49,7 +49,7 @@ Or open the local page, which adds a microphone button and a code view:
 python3 scripts/athena_ui.py
 ```
 
-That opens http://127.0.0.1:8765. Leave the terminal window open while you use the page.
+That opens http://127.0.0.1:8765. Leave that window open while you use the page. **Code** can open project folders and files, ask ATHENA to work in the folder you are browsing, and run commands you type in the page terminal. **Apply** is still what writes a file.
 
 On Windows, use `python` instead of `python3`.
 

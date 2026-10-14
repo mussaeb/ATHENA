@@ -49,7 +49,8 @@ Open http://127.0.0.1:8765 if it does not open on its own.
 - **Listen** uses the browser microphone and sends that sentence as the question
 - **Speak replies** reads the answer with the operating system voice
 - **Documents** and **Web** attach those sources to ordinary questions
-- **Code** lists project files, shows git status, drafts a change, and writes it only after **Apply**
+- **Code** browses project folders and files, asks ATHENA to work in the open folder or the whole project, and writes a file only after **Apply**
+- The terminal at the bottom runs commands you type, starting in the project folder
 
 In Chrome, the microphone recognizer sends audio to Google. The answer is still produced by the local model. Safari can use Apple's recognizer instead.
 

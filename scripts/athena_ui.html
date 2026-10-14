@@ -143,16 +143,23 @@
       padding: 1rem;
       height: 100%;
     }
-    #code.active { display: grid; }
+    #code.active {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) 11.5rem;
+    }
     .files, .workspace {
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 1.1rem;
+      min-width: 0;
       min-height: 0;
       box-shadow: var(--shadow);
     }
-    .files { display: flex; flex-direction: column; padding: 0.8rem; }
-    .file-tools { display: flex; gap: 0.4rem; }
+    .files { grid-row: 1; display: flex; flex-direction: column; min-height: 0; padding: 0.8rem; }
+    .workspace { grid-row: 1; }
+    #crumbs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.45rem; }
+    #crumbs button { border: 0; background: transparent; color: var(--teal); padding: 0; }
+    .file-tools { display: flex; flex-wrap: wrap; gap: 0.4rem; }
     .file-tools input { flex: 1; border: 1px solid var(--line); border-radius: 999px; padding: 0.4rem 0.7rem; }
     #file-list { list-style: none; margin: 0.8rem 0 0; padding: 0; overflow: auto; }
     #file-list button {
@@ -170,7 +177,32 @@
     .workspace { display: flex; flex-direction: column; min-height: 0; padding: 0.9rem; gap: 0.7rem; }
     .code-actions, .draft { display: flex; flex-wrap: wrap; gap: 0.45rem; }
     .draft input { flex: 1; min-width: 12rem; border: 1px solid var(--line); border-radius: 0.7rem; padding: 0.45rem 0.7rem; }
-    #apply { background: var(--teal); color: var(--teal-ink); border-color: var(--teal); }
+    #apply, #ask-project, #term-run { background: var(--teal); color: var(--teal-ink); border-color: var(--teal); }
+    #project-ask {
+      width: 100%;
+      min-height: 3.2rem;
+      border: 1px solid var(--line);
+      border-radius: 0.8rem;
+      padding: 0.55rem 0.7rem;
+      background: var(--card);
+    }
+    .terminal {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      min-width: 0;
+      min-height: 0;
+      padding: 0.7rem 0.8rem;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 1.1rem;
+    }
+    .term-bar { display: flex; gap: 0.45rem; align-items: center; }
+    #term-cwd { min-width: 4rem; color: var(--teal); font: 0.85rem/1.2 ui-monospace, Consolas, monospace; }
+    #term-command { flex: 1; border: 1px solid var(--line); border-radius: 999px; padding: 0.4rem 0.75rem; background: #1d1914; color: #f6f1e8; }
+    #term-output { min-height: 0; }
     pre {
       margin: 0;
       flex: 1;
@@ -188,8 +220,13 @@
       article.you, article.athena { margin-left: 0; margin-right: 0; }
       .composer { grid-template-columns: 1fr 1fr; }
       textarea { grid-column: 1 / -1; }
-      #code.active { grid-template-columns: 1fr; overflow: auto; }
+      #code.active { grid-template-columns: 1fr; grid-template-rows: 16rem minmax(18rem, auto) 12rem; overflow: auto; }
+      .files, .workspace, .terminal { grid-column: 1; grid-row: auto; }
       .files { max-height: 16rem; }
+      .file-tools input { flex: 1 1 100%; }
+      .draft input { min-width: 0; flex: 1 1 100%; }
+      .code-actions { display: grid; grid-template-columns: 1fr 1fr; }
+      #ask-project, #apply { grid-column: 1 / -1; }
     }
   </style>
 </head>
@@ -223,28 +260,42 @@
     </section>
     <section id="code" class="view">
       <aside class="files">
+        <div id="crumbs"></div>
         <div class="file-tools">
-          <input id="file-query" type="search" placeholder="Find a project file" aria-label="Find a project file">
-          <button type="button" id="list-files">List</button>
+          <input id="file-query" type="search" placeholder="Find in the project" aria-label="Find in the project">
+          <button type="button" id="list-files">Find</button>
+          <button type="button" id="show-folder">Folder</button>
         </div>
         <ul id="file-list"></ul>
       </aside>
       <div class="workspace">
+        <p id="scope-label" class="hint">Asking about the whole project.</p>
+        <textarea id="project-ask" rows="2" placeholder="Explain or change this folder. From the project root, this covers the whole project."></textarea>
         <div class="code-actions">
+          <button type="button" id="ask-project">Ask</button>
           <button type="button" id="git">Git status</button>
           <button type="button" id="diff">Diff</button>
           <button type="button" id="tests">Run tests</button>
-        </div>
-        <div class="draft">
-          <input id="edit-path" type="text" placeholder="Path, such as vision/README.md" aria-label="File to change">
-          <input id="edit-instruction" type="text" placeholder="What should change?" aria-label="Change to draft">
-          <button type="button" id="propose">Draft change</button>
           <button type="button" id="apply">Apply</button>
         </div>
-        <pre id="code-output">Choose a file, or draft a change. Apply writes only after you review the diff.</pre>
+        <div class="draft">
+          <input id="edit-path" type="text" placeholder="One file, such as vision/README.md" aria-label="File to change">
+          <input id="edit-instruction" type="text" placeholder="Or draft one exact file change" aria-label="Change to draft">
+          <button type="button" id="propose">Draft this file</button>
+        </div>
+        <pre id="code-output">Open a folder or file. Ask can cover the folder you are in. Apply writes a file only after you review the diff.</pre>
       </div>
+      <form id="terminal" class="terminal">
+        <pre id="term-output">Commands run on this computer, starting in the project folder. ATHENA does not type them for you.</pre>
+        <div class="term-bar">
+          <span id="term-cwd">.</span>
+          <input id="term-command" type="text" placeholder="python3 -m unittest discover -s tests" aria-label="Terminal command" autocomplete="off" spellcheck="false">
+          <button type="submit" id="term-run">Run</button>
+        </div>
+      </form>
     </section>
   </main>
+  <script>window.ATHENA_PAGE_TOKEN = "__ATHENA_TOKEN__";</script>
   <script>
     const log = document.querySelector("#log");
     const text = document.querySelector("#text");
@@ -254,6 +305,11 @@
     const codeOutput = document.querySelector("#code-output");
     const fileList = document.querySelector("#file-list");
     const editPath = document.querySelector("#edit-path");
+    const scopeLabel = document.querySelector("#scope-label");
+    const termOutput = document.querySelector("#term-output");
+    const termCwd = document.querySelector("#term-cwd");
+    let browsePath = "";
+    let focusFile = "";
     let recognition = null;
     let busy = false;
 
@@ -268,7 +324,7 @@
       document.querySelector("#show-talk").setAttribute("aria-pressed", name === "talk");
       document.querySelector("#show-code").setAttribute("aria-pressed", name === "code");
       if (name === "code" && !fileList.children.length) {
-        loadFiles().catch((error) => { codeOutput.textContent = error.message; });
+        openFolder(browsePath).catch((error) => { codeOutput.textContent = error.message; });
       }
     }
 
@@ -285,7 +341,10 @@
     async function post(url, body) {
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Athena-Token": window.ATHENA_PAGE_TOKEN || ""
+        },
         body: JSON.stringify(body)
       });
       const payload = await response.json();
@@ -414,6 +473,60 @@
       }
     }
 
+    function updateScope() {
+      const where = browsePath ? browsePath : "the whole project";
+      const looking = focusFile ? " Looking at " + focusFile + "." : "";
+      scopeLabel.textContent = "Asking about " + where + "." + looking;
+    }
+
+    function renderEntries(payload) {
+      browsePath = payload.path || "";
+      fileList.textContent = "";
+      const crumbs = document.querySelector("#crumbs");
+      crumbs.textContent = "";
+      const root = document.createElement("button");
+      root.type = "button";
+      root.textContent = "Project";
+      root.addEventListener("click", () => openFolder("").catch(showTreeError));
+      crumbs.appendChild(root);
+      if (browsePath) {
+        browsePath.split("/").forEach((part, index, parts) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = "/ " + part;
+          const target = parts.slice(0, index + 1).join("/");
+          button.addEventListener("click", () => openFolder(target).catch(showTreeError));
+          crumbs.appendChild(button);
+        });
+      }
+      (payload.entries || []).forEach((entry) => {
+        const item = document.createElement("li");
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = entry.kind === "dir" ? entry.name + "/" : entry.name;
+        button.addEventListener("click", () => {
+          if (entry.kind === "dir") openFolder(entry.path).catch(showTreeError);
+          else openFile(entry.path, button);
+        });
+        item.appendChild(button);
+        fileList.appendChild(item);
+      });
+      updateScope();
+    }
+
+    function showTreeError(error) {
+      codeOutput.textContent = error.message;
+    }
+
+    async function openFolder(path) {
+      focusFile = "";
+      editPath.value = "";
+      const response = await fetch("/api/code/tree?path=" + encodeURIComponent(path || ""));
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not open that folder.");
+      renderEntries(payload);
+    }
+
     async function loadFiles() {
       const query = document.querySelector("#file-query").value.trim();
       const response = await fetch("/api/code/files?q=" + encodeURIComponent(query));
@@ -436,7 +549,9 @@
     async function openFile(path, button) {
       fileList.querySelectorAll("button").forEach((item) => item.removeAttribute("aria-current"));
       if (button) button.setAttribute("aria-current", "true");
+      focusFile = path;
       editPath.value = path;
+      updateScope();
       await showCode("Reading " + path + "...", async () => {
         const response = await fetch("/api/code/file?path=" + encodeURIComponent(path));
         const payload = await response.json();
@@ -466,6 +581,42 @@
     document.querySelector("#index").addEventListener("click", () => sendText("/index", false));
     document.querySelector("#list-files").addEventListener("click", () => {
       loadFiles().catch((error) => { codeOutput.textContent = error.message; });
+    });
+    document.querySelector("#show-folder").addEventListener("click", () => {
+      openFolder(browsePath).catch(showTreeError);
+    });
+    document.querySelector("#ask-project").addEventListener("click", () => {
+      const instruction = document.querySelector("#project-ask").value.trim();
+      if (!instruction) {
+        codeOutput.textContent = "Say what you want done in this folder or the whole project. Nothing is written yet.";
+        return;
+      }
+      showCode("Working in " + (browsePath || "the project") + ". Nothing is written yet...", async () => {
+        const payload = await post("/api/code/ask", {
+          instruction: instruction,
+          path: browsePath,
+          focus: focusFile
+        });
+        if (payload.path) editPath.value = payload.path;
+        return payload.text || "No reply.";
+      });
+    });
+    document.querySelector("#terminal").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const commandInput = document.querySelector("#term-command");
+      const command = commandInput.value.trim();
+      if (!command) return;
+      commandInput.value = "";
+      termOutput.textContent += (termOutput.textContent ? "\n" : "") + termCwd.textContent + " $ " + command + "\n";
+      try {
+        const payload = await post("/api/terminal", { command: command });
+        termCwd.textContent = payload.cwd || ".";
+        if (payload.text) termOutput.textContent += payload.text + "\n";
+        if (payload.code) termOutput.textContent += "(exit " + payload.code + ")\n";
+      } catch (error) {
+        termOutput.textContent += error.message + "\n";
+      }
+      termOutput.scrollTop = termOutput.scrollHeight;
     });
     document.querySelector("#git").addEventListener("click", () => showCode("Reading git status...", async () => {
       const response = await fetch("/api/code/git?view=status");

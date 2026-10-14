@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import threading
 import unittest
@@ -40,8 +41,10 @@ class InterfaceTests(unittest.TestCase):
         self.assertIn("Speak replies", page)
         self.assertIn("Documents", page)
         self.assertIn("Web", page)
-        self.assertIn("Draft change", page)
+        self.assertIn("Draft this file", page)
         self.assertIn("Apply", page)
+        self.assertIn("__ATHENA_TOKEN__", page)
+        self.assertIn("Ask", page)
         self.assertIn("sends audio to Google", page)
 
     def test_voice_reply_is_only_for_conversation(self) -> None:
@@ -63,6 +66,19 @@ class InterfaceTests(unittest.TestCase):
             with urllib.request.urlopen(base + "/", timeout=5) as response:
                 html = response.read().decode("utf-8")
             self.assertIn("Listen", html)
+            self.assertIn("test-token", html)
+            self.assertNotIn("__ATHENA_TOKEN__", html)
+
+            blocked = urllib.request.Request(
+                base + "/api/terminal",
+                data=b'{"command":"cd scripts"}',
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with self.assertRaises(urllib.error.HTTPError) as missing_token:
+                urllib.request.urlopen(blocked, timeout=5)
+            self.assertEqual(missing_token.exception.code, 403)
+            missing_token.exception.close()
 
             self._post(base + "/api/settings", {"speak": True, "docmode": True, "webmode": True})
             self.assertTrue(session.speak)
@@ -87,6 +103,12 @@ class InterfaceTests(unittest.TestCase):
             with urllib.request.urlopen(base + "/api/code/file?path=README.md", timeout=5) as response:
                 readme = json.load(response)
             self.assertIn("ATHENA", readme["text"])
+
+            with urllib.request.urlopen(base + "/api/code/tree?path=scripts", timeout=5) as response:
+                tree = json.load(response)
+            names = [item["name"] for item in tree["entries"]]
+            self.assertIn("athena_ui.py", names)
+            self.assertEqual(tree["path"], "scripts")
 
             request = urllib.request.Request(
                 base + "/api/turn",
@@ -119,11 +141,58 @@ class InterfaceTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
 
+    def test_folder_listing_stays_inside_the_project(self) -> None:
+        listing = athena_ui.list_directory(athena_ui.PROJECT_ROOT, "")
+        names = [item["name"] for item in listing["entries"]]
+        self.assertIn("scripts", names)
+        self.assertNotIn(".git", names)
+        with self.assertRaises(ValueError):
+            athena_ui.list_directory(athena_ui.PROJECT_ROOT, "..")
+
+    def test_project_draft_stays_inside_the_selected_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            note = root / "docs" / "note.md"
+            note.parent.mkdir()
+            note.write_text("hello\n", encoding="utf-8")
+            (root / "README.md").write_text("root\n", encoding="utf-8")
+            proposals = root / "proposals"
+            drafted = (
+                "I would change the note.\n"
+                "<<<PATH>>>\n"
+                "docs/note.md\n"
+                "<<<REPLACE>>>\n"
+                "hello\n"
+                "<<<WITH>>>\n"
+                "hello there\n"
+                "<<<END>>>\n"
+            )
+            proposal = athena_ui.proposal_from_model_text(root, drafted, "docs", proposals)
+            self.assertEqual(proposal["path"], "docs/note.md")
+            self.assertIn("hello there", proposal["diff"])
+            outside = drafted.replace("docs/note.md", "README.md").replace("hello", "root", 1)
+            with self.assertRaises(ValueError):
+                athena_ui.proposal_from_model_text(root, outside, "docs", proposals)
+            escaped = drafted.replace("docs/note.md", "docs/../README.md")
+            with self.assertRaises(ValueError):
+                athena_ui.proposal_from_model_text(root, escaped, "docs", proposals)
+
+    def test_terminal_cannot_leave_the_project(self) -> None:
+        terminal = athena_ui.ProjectTerminal(athena_ui.PROJECT_ROOT)
+        self.assertEqual(terminal.run("cd scripts")["cwd"], "scripts")
+        self.assertEqual(terminal.run("cd ..")["cwd"], ".")
+        with self.assertRaises(ValueError):
+            terminal.run("cd ..")
+        command = "Write-Output athena-terminal-ok" if os.name == "nt" else "printf athena-terminal-ok"
+        result = terminal.run(command)
+        self.assertEqual(result["code"], 0)
+        self.assertIn("athena-terminal-ok", result["text"])
+
     def _post(self, url: str, payload: dict) -> dict:
         request = urllib.request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-Athena-Token": "test-token"},
             method="POST",
         )
         with urllib.request.urlopen(request, timeout=10) as response:

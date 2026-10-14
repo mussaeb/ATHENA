@@ -84,3 +84,4 @@ Reason:
 - Open WebUI and another model do not fit the 8 GB budget
 - Chat, document search, web search, and reviewed edits can share one page without a frontend toolchain
 - Chrome's recognizer is not fully local, so the page says that plainly
+- The page terminal runs only commands the user types, and file writes still wait for Apply

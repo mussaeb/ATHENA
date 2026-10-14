@@ -109,7 +109,7 @@ The page is the easier way to talk and to review code:
 python3 scripts/athena_ui.py
 ```
 
-Use **Listen** for a spoken question and **Speak replies** to hear the answer. Turn on **Documents**, **Web**, or both before you ask. The **Code** view can read files and draft a change; **Apply** is what writes it.
+Use **Listen** for a spoken question and **Speak replies** to hear the answer. Turn on **Documents**, **Web**, or both before you ask. In **Code**, open a folder or file, ask ATHENA to work there, and use the terminal for commands you type. **Apply** is what writes a file.
 
 ## Step 6: Keep Memory Stable
 
