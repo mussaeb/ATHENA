@@ -109,7 +109,7 @@ The page is the easier way to talk and to review code:
 python3 scripts/athena_ui.py
 ```
 
-Use **Listen** for a spoken question and **Speak replies** to hear the answer. Turn on **Documents**, **Web**, or both before you ask. In **Code**, press **Open project** for another folder. Open a file to edit it and press **Save**. Ask ATHENA from the box above the editor. **Apply** writes a reviewed draft. Drag the dividers to resize the file list or the bottom panel, and use **Files** or **Panel** to hide them.
+Use **Listen** for a spoken question and **Speak replies** to hear the answer. Turn on **Documents**, **Web**, or both before you ask. In **Code**, press **Open project** for another folder. Open a file to edit it and press **Save**. Ask ATHENA from the box above the editor. The question moves into **Replies**, and a follow-up can refer to the recent ones; **Clear** starts over. **Apply** writes a reviewed draft. Drag the dividers to resize the file list or the bottom panel, and use **Files** or **Panel** to hide them.
 
 ## Step 6: Keep Memory Stable
 

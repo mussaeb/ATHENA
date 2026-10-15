@@ -52,6 +52,7 @@ Open http://127.0.0.1:8765 if it does not open on its own.
 - **Code** starts in the ATHENA folder. **Open project** switches to another folder on this computer
 - Open a file and edit it in the page. Several files stay open as tabs. **Save** writes your edit. **Apply** writes a draft from ATHENA
 - **New file** creates a file in the open folder. Ctrl+P opens a file by name, Ctrl+F finds in the file, and Ctrl+G jumps to a line
+- **Ask** clears the box and keeps the recent questions in **Replies**, so a follow-up can refer to the previous one. **Clear** starts that conversation over
 - Drag the dividers to resize the file list or the bottom panel. **Files** and **Panel** hide them
 - The terminal runs commands you type, starting in the open project
 

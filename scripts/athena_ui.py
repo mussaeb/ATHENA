@@ -126,7 +126,27 @@ def project_context(root: Path, folder: str, focus: str) -> str:
     return "\n\n".join(parts)
 
 
-def build_project_prompt(context: str, instruction: str) -> str:
+def remember_turns(turns: list[dict[str, str]], instruction: str, answer: str, limit: int = 6) -> list[dict[str, str]]:
+    updated = [
+        *turns,
+        {"role": "user", "text": instruction.strip()},
+        {"role": "assistant", "text": clip(answer.strip(), 1200)},
+    ]
+    return updated[-limit:]
+
+
+def build_project_prompt(context: str, instruction: str, history: list[dict[str, str]] | None = None) -> str:
+    prior = ""
+    if history:
+        lines = []
+        for turn in history[-6:]:
+            who = "User" if turn.get("role") == "user" else "ATHENA"
+            lines.append(f"{who}: {turn.get('text', '')}")
+        prior = (
+            "Recent questions in this same project. Use them when the new request refers to earlier ones.\n"
+            + "\n".join(lines)
+            + "\n\n"
+        )
     return (
         "You are helping with one local project. Stay inside the scope below. "
         "Answer the request in plain text. "
@@ -134,7 +154,7 @@ def build_project_prompt(context: str, instruction: str) -> str:
         "<<<PATH>>>\nrelative/path\n<<<REPLACE>>>\nexact current text\n<<<WITH>>>\nreplacement text\n<<<END>>>\n"
         "For a new file, use <<<ATHENA_FILE>>> and <<<END>>> after <<<PATH>>> instead of REPLACE and WITH. "
         "Copy the smallest unique snippet. Do not edit secrets or files outside the scope.\n\n"
-        f"{context}\n\nRequest: {instruction}"
+        f"{prior}{context}\n\nRequest: {instruction}"
     )
 
 
@@ -272,6 +292,7 @@ class Workspace:
 
     def __init__(self, root: Path | None = None) -> None:
         self.proposal_dir = PROJECT_ROOT / "logs" / "ui-proposals"
+        self.turns: list[dict[str, str]] = []
         self.root = PROJECT_ROOT.resolve()
         self.terminal = ProjectTerminal(self.root)
         if root is not None:
@@ -280,6 +301,7 @@ class Workspace:
     def open(self, root: Path) -> None:
         self.root = open_project_folder(str(root))
         self.terminal = ProjectTerminal(self.root)
+        self.turns = []
 
     def info(self) -> dict[str, str]:
         return {"path": str(self.root), "name": self.root.name}
@@ -319,6 +341,7 @@ def ask_project(
     folder: str = "",
     focus: str = "",
     proposal_dir: Path | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> dict[str, str]:
     instruction = instruction.strip()
     if not instruction:
@@ -327,7 +350,7 @@ def ask_project(
     raw = ask_ollama(
         [
             {"role": "system", "content": "You revise local project files only when the requested markers are included."},
-            {"role": "user", "content": build_project_prompt(context, instruction)},
+            {"role": "user", "content": build_project_prompt(context, instruction, history)},
         ],
         temperature=0.2,
     )
@@ -597,7 +620,9 @@ def build_handler(
                             folder,
                             focus,
                             project.proposal_dir,
+                            project.turns,
                         )
+                        project.turns = remember_turns(project.turns, instruction, payload["text"])
                     except (OSError, ValueError, RuntimeError) as exc:
                         self._json(400, {"error": str(exc)})
                         return
@@ -621,14 +646,20 @@ def build_handler(
                         return
                 self._json(200, {"text": message, "path": path})
                 return
+            if parsed.path == "/api/code/forget":
+                with session_lock:
+                    project.turns = []
+                self._json(200, {"text": "Cleared the questions for this project."})
+                return
             if parsed.path == "/api/code/apply":
                 with session_lock:
                     try:
                         message = apply_workspace_proposal(project)
+                        saved = load_latest_proposal(project.proposal_dir)
                     except (OSError, ValueError) as exc:
                         self._json(400, {"error": str(exc)})
                         return
-                self._json(200, {"text": message})
+                self._json(200, {"text": message, "path": str(saved.get("path", ""))})
                 return
             if parsed.path == "/api/code/test":
                 with session_lock:

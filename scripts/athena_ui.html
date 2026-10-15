@@ -406,8 +406,9 @@
           <ul id="quick-list"></ul>
         </div>
         <form id="ask-form" class="ask-row">
-          <input id="project-ask" type="text" placeholder="Ask ATHENA about the open file or this project" aria-label="Ask ATHENA">
+          <input id="project-ask" type="text" placeholder="Ask about this file or project. Follow-ups keep the recent questions." aria-label="Ask ATHENA">
           <button type="button" id="ask-project">Ask</button>
+          <button type="button" id="clear-ask">Clear</button>
           <button type="button" id="git">Git</button>
           <button type="button" id="diff">Diff</button>
           <button type="button" id="tests">Test</button>
@@ -423,7 +424,7 @@
       <section id="dock">
         <div class="dock-bar">
           <button type="button" id="tab-terminal" aria-pressed="true">Terminal</button>
-          <button type="button" id="tab-output" aria-pressed="false">Output</button>
+          <button type="button" id="tab-output" aria-pressed="false">Replies</button>
           <button type="button" id="hide-dock">Hide</button>
         </div>
         <form id="terminal" class="terminal">
@@ -434,7 +435,7 @@
             <button type="submit" id="term-run">Run</button>
           </div>
         </form>
-        <pre id="code-output" hidden>Git, tests, and ATHENA replies show here. Apply writes a reviewed draft. Save writes the editor.</pre>
+        <pre id="code-output" hidden>Replies to Ask show here, including the earlier questions. The terminal is only for commands you type.</pre>
       </section>
       <div class="status-bar">
         <button type="button" id="toggle-sidebar" aria-pressed="true">Files</button>
@@ -465,6 +466,9 @@
     let savedText = "";
     const openTabs = new Map();
     let quickIndex = 0;
+    let codeTurns = [];
+    let toolNote = "";
+    let asking = false;
     let recognition = null;
     let busy = false;
 
@@ -767,14 +771,27 @@
       });
     }
 
-    async function showCode(label, loader) {
+    function paintCodePanel() {
+      const lines = codeTurns.map((turn) => (turn.role === "you" ? "You" : "ATHENA") + "\n" + turn.text);
+      const parts = [];
+      if (lines.length) parts.push(lines.join("\n\n"));
+      if (toolNote) parts.push(toolNote);
+      codeOutput.textContent = parts.length
+        ? parts.join("\n\n")
+        : "Replies to Ask show here, including the earlier questions. The terminal is only for commands you type.";
       showDockTab("output");
-      codeOutput.textContent = label;
+      codeOutput.scrollTop = codeOutput.scrollHeight;
+    }
+
+    async function showCode(label, loader) {
+      toolNote = label;
+      paintCodePanel();
       try {
-        codeOutput.textContent = await loader();
+        toolNote = await loader();
       } catch (error) {
-        codeOutput.textContent = error.message;
+        toolNote = error.message;
       }
+      paintCodePanel();
     }
 
     function paintProject(payload) {
@@ -835,13 +852,16 @@
       focusFile = "";
       savedText = "";
       openTabs.clear();
+      codeTurns = [];
+      toolNote = "";
       editor.value = "";
       paintEditor();
+      paintCodePanel();
       termCwd.textContent = ".";
       termOutput.textContent = "Commands run in the open project. ATHENA does not type them for you.";
       setOpener(false);
-      showDockTab("output");
-      codeOutput.textContent = "Opened " + payload.name + ". Open a file to edit it, or ask about this project.";
+      toolNote = "Opened " + payload.name + ". Open a file to edit it, or ask about this project.";
+      paintCodePanel();
       await openFolder("");
     }
 
@@ -1121,20 +1141,63 @@
         openFile(chosen.textContent).catch(showTreeError);
       }
     });
+    document.querySelector("#project-ask").addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        document.querySelector("#ask-project").click();
+      }
+    });
     document.querySelector("#ask-project").addEventListener("click", () => {
-      const instruction = document.querySelector("#project-ask").value.trim();
+      if (asking) return;
+      const box = document.querySelector("#project-ask");
+      const instruction = box.value.trim();
       if (!instruction) {
-        showDockTab("output");
-        codeOutput.textContent = "Say what you want done in this folder or the whole project. Nothing is written until you Apply.";
+        toolNote = "Type a question first. Nothing is written until you Apply.";
+        paintCodePanel();
         return;
       }
-      showCode("Working in " + (browsePath || "the project") + ". Nothing is written until you Apply...", async () => {
-        const payload = await post("/api/code/ask", {
-          instruction: instruction,
-          path: browsePath,
-          focus: focusFile
-        });
-        return payload.text || "No reply.";
+      asking = true;
+      toolNote = "";
+      box.value = "";
+      const askButton = document.querySelector("#ask-project");
+      const clearButton = document.querySelector("#clear-ask");
+      askButton.disabled = true;
+      clearButton.disabled = true;
+      codeTurns.push({ role: "you", text: instruction });
+      codeTurns.push({ role: "athena", text: "Working in " + (browsePath || "the project") + ". Nothing is written until you Apply." });
+      paintCodePanel();
+      post("/api/code/ask", {
+        instruction: instruction,
+        path: browsePath,
+        focus: focusFile
+      }).then((payload) => {
+        codeTurns[codeTurns.length - 1] = { role: "athena", text: payload.text || "No reply." };
+        paintCodePanel();
+        box.focus();
+      }).catch((error) => {
+        codeTurns.pop();
+        codeTurns.pop();
+        box.value = instruction;
+        toolNote = error.message;
+        paintCodePanel();
+      }).finally(() => {
+        asking = false;
+        askButton.disabled = false;
+        clearButton.disabled = false;
+        box.focus();
+      });
+    });
+    document.querySelector("#clear-ask").addEventListener("click", () => {
+      if (asking) return;
+      const previous = codeTurns;
+      const previousNote = toolNote;
+      codeTurns = [];
+      toolNote = "";
+      paintCodePanel();
+      post("/api/code/forget", {}).catch((error) => {
+        codeTurns = previous;
+        toolNote = error.message || previousNote;
+        paintCodePanel();
       });
     });
     document.querySelector("#ask-form").addEventListener("submit", (event) => {
@@ -1176,7 +1239,17 @@
       if (!window.confirm("Write the latest reviewed change into this project?")) return;
       showCode("Writing the reviewed change...", async () => {
         const payload = await post("/api/code/apply", {});
-        return payload.text || "Nothing was written.";
+        const message = payload.text || "Nothing was written.";
+        if (payload.path && payload.path === focusFile) {
+          if (editorDirty()) {
+            return message + "\nThe open editor still has unsaved edits, so it was left unchanged.";
+          }
+          openTabs.delete(focusFile);
+          const path = focusFile;
+          focusFile = "";
+          await openFile(path);
+        }
+        return message;
       });
     });
 

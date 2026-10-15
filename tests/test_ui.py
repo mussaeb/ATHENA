@@ -48,6 +48,8 @@ class InterfaceTests(unittest.TestCase):
         self.assertIn("Apply", page)
         self.assertIn("__ATHENA_TOKEN__", page)
         self.assertIn("Ask", page)
+        self.assertIn("Clear", page)
+        self.assertIn("Replies", page)
         self.assertIn("Open project", page)
         self.assertIn("sends audio to Google", page)
 
@@ -274,6 +276,21 @@ class InterfaceTests(unittest.TestCase):
             finally:
                 server.shutdown()
                 server.server_close()
+
+    def test_follow_up_questions_keep_the_recent_context(self) -> None:
+        turns = athena_ui.remember_turns([], "Rename the title", "I would rename the title.")
+        turns = athena_ui.remember_turns(turns, "Use the shorter one", "The shorter title is ready.")
+        prompt = athena_ui.build_project_prompt("Scope: docs", "Do that in the readme", turns)
+        self.assertIn("Rename the title", prompt)
+        self.assertIn("Do that in the readme", prompt)
+        self.assertLessEqual(len(turns), 6)
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = athena_ui.Workspace(Path(directory))
+            workspace.turns = turns
+            nested = Path(directory) / "other"
+            nested.mkdir()
+            workspace.open(nested)
+            self.assertEqual(workspace.turns, [])
 
     def test_project_picker_refuses_a_file(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
